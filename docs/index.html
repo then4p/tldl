@@ -1,0 +1,716 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>tldl</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Atkinson+Hyperlegible+Next:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: two-column hero (pitch + synced steps | live Telegram phone), then quiet reference sections on a cool paper ground. */
+:root {
+  --paper: #eef1f5;
+  --surface: #ffffff;
+  --ink: #121a2b;
+  --muted: #586379;
+  --line: #d6dce6;
+  --hl: #ffdf4f;          /* highlighter: the one bold color */
+  --hl-ink: #121a2b;
+  --code-bg: #121a2b;
+  --code-fg: #e6ebf3;
+  --code-dim: #8c99b2;
+  /* Telegram-like chat inside the phone */
+  --tg-wall: #c9d9e6;
+  --tg-dot: #b9cbda;
+  --tg-in: #ffffff;
+  --tg-out: #e2fbd0;
+  --tg-text: #0f1419;
+  --tg-meta: #6d8196;
+  --tg-out-meta: #4f9a4a;
+  --tg-accent: #2f8ee5;
+  --tg-bar: #ffffff;
+  --tg-wave: #a9c3d9;
+  --tg-wave-on: #2f8ee5;
+  --phone: #1a2233;
+
+  --f-display: "Bricolage Grotesque", "Avenir Next Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --f-app: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0c1220; --surface: #141c2d; --ink: #e8edf5; --muted: #95a2b9; --line: #253149;
+    --hl: #f3d33f; --hl-ink: #121a2b; --code-bg: #070b14; --code-fg: #e6ebf3; --code-dim: #7d8aa3;
+    --tg-wall: #0f1b28; --tg-dot: #15263a; --tg-in: #182533; --tg-out: #2b5278; --tg-text: #f1f4f8;
+    --tg-meta: #7d93aa; --tg-out-meta: #8fc2f0; --tg-accent: #6ab2f2; --tg-bar: #17212b;
+    --tg-wave: #45607a; --tg-wave-on: #8fc9ff; --phone: #05080f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0c1220; --surface: #141c2d; --ink: #e8edf5; --muted: #95a2b9; --line: #253149;
+  --hl: #f3d33f; --hl-ink: #121a2b; --code-bg: #070b14; --code-fg: #e6ebf3; --code-dim: #7d8aa3;
+  --tg-wall: #0f1b28; --tg-dot: #15263a; --tg-in: #182533; --tg-out: #2b5278; --tg-text: #f1f4f8;
+  --tg-meta: #7d93aa; --tg-out-meta: #8fc2f0; --tg-accent: #6ab2f2; --tg-bar: #17212b;
+  --tg-wave: #45607a; --tg-wave-on: #8fc9ff; --phone: #05080f;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 17px/1.6 var(--f-body);
+  padding-inline: 20px;
+  padding-block: 0 48px;
+}
+.wrap { max-width: 1120px; margin-inline: auto; }
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--hl); outline-offset: 3px; border-radius: 6px; }
+
+/* ---------- top bar ---------- */
+.top {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding-block: 22px;
+}
+.mark {
+  font: 800 26px/1 var(--f-display);
+  letter-spacing: -0.02em;
+  text-decoration: none;
+}
+.mark span { color: var(--muted); }
+.top nav { display: flex; gap: 22px; font-size: 15px; flex-wrap: wrap; }
+.top nav a { text-decoration: none; color: var(--muted); }
+.top nav a:hover { color: var(--ink); }
+.top nav { margin-left: auto; }
+.theme {
+  display: inline-flex; align-items: center; gap: 8px; flex: none;
+  font: 500 13px/1 var(--f-mono);
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 8px 13px 8px 10px; cursor: pointer;
+}
+.theme:hover { border-color: var(--ink); }
+.theme svg { width: 16px; height: 16px; transition: transform .3s; }
+:root[data-theme="light"] .theme svg { transform: rotate(180deg); }
+
+/* ---------- hero ---------- */
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 56px;
+  align-items: center;
+  padding-block: 28px 64px;
+}
+.eyebrow {
+  font: 500 13px/1 var(--f-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 0 0 18px;
+}
+h1 {
+  font: 800 clamp(48px, 7.4vw, 92px)/0.95 var(--f-display);
+  letter-spacing: -0.035em;
+  margin: 0 0 26px;
+  text-wrap: balance;
+}
+.hl {
+  color: var(--hl-ink);
+  background: linear-gradient(transparent 8%, var(--hl) 8%, var(--hl) 88%, transparent 88%) no-repeat 0 0 / 100% 100%;
+  padding-inline: 0.06em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  animation: swipe 900ms cubic-bezier(.6,.05,.25,1) 300ms both;
+}
+@keyframes swipe { from { background-size: 0% 100%; } to { background-size: 100% 100%; } }
+.lede { font-size: 20px; max-width: 34ch; margin: 0 0 14px; }
+.sub { color: var(--muted); max-width: 44ch; margin: 0 0 30px; }
+.ctas { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 40px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  font: 600 16px/1 var(--f-body);
+  padding: 14px 20px; border-radius: 999px;
+  text-decoration: none; cursor: pointer;
+  border: 1.5px solid var(--ink);
+}
+.btn.primary { background: var(--ink); color: var(--paper); }
+.btn.ghost { background: transparent; color: var(--ink); }
+.btn:hover { transform: translateY(-1px); }
+
+/* steps synced with the phone */
+.steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; max-width: 460px; }
+.steps li {
+  display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; align-items: start;
+  padding: 10px 12px; border-radius: 12px;
+  color: var(--muted);
+  transition: background-color .3s, color .3s;
+}
+.steps .n {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: grid; place-items: center;
+  font: 500 13px/1 var(--f-mono);
+  border: 1.5px solid currentColor;
+  transition: background-color .3s, color .3s, border-color .3s;
+}
+.steps b { display: block; color: var(--ink); font-weight: 600; }
+.steps small { font-size: 15px; line-height: 1.45; display: block; }
+.steps code { font: 13.5px var(--f-mono); }
+.steps li.active { background: var(--surface); color: var(--ink); }
+.steps li.active .n { background: var(--hl); border-color: var(--hl); color: var(--hl-ink); }
+.steps li.done .n { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+
+/* ---------- phone ---------- */
+.stage { display: grid; justify-items: center; gap: 14px; }
+.phone {
+  width: min(100%, 368px);
+  background: var(--phone);
+  border-radius: 46px;
+  padding: 12px;
+  box-shadow: 0 30px 60px -28px rgba(18, 26, 43, .55), 0 2px 0 rgba(255,255,255,.06) inset;
+}
+.screen {
+  border-radius: 36px;
+  overflow: hidden;
+  height: 640px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  font-family: var(--f-app);
+  color: var(--tg-text);
+  background: var(--tg-wall);
+}
+.tg-head {
+  display: flex; align-items: center; gap: 11px;
+  padding: 34px 14px 10px;
+  background: var(--tg-bar);
+  border-bottom: 1px solid rgba(0,0,0,.06);
+}
+.tg-back { color: var(--tg-accent); font-size: 26px; line-height: 1; width: 14px; }
+.avatar {
+  width: 40px; height: 40px; border-radius: 50%; flex: none;
+  background: var(--ink); color: var(--hl);
+  display: grid; place-items: center;
+  font: 800 15px/1 var(--f-display); letter-spacing: -0.02em;
+}
+:root[data-theme="dark"] .avatar { background: var(--hl); color: var(--hl-ink); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .avatar { background: var(--hl); color: var(--hl-ink); } }
+.tg-name { font-weight: 600; font-size: 16px; line-height: 1.2; }
+.tg-status { font-size: 13.5px; color: var(--tg-meta); line-height: 1.3; }
+.tg-status.typing { color: var(--tg-accent); }
+.chat {
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 8px;
+  padding: 12px 10px 10px;
+  overflow: hidden;
+  background-image: radial-gradient(var(--tg-dot) 1.2px, transparent 1.3px);
+  background-size: 18px 18px;
+}
+.day {
+  align-self: center;
+  font-size: 12.5px; font-weight: 600;
+  padding: 3px 10px; border-radius: 999px;
+  background: rgba(0,0,0,.32); color: #fff;
+  margin-bottom: 4px;
+}
+.msg {
+  max-width: 86%;
+  padding: 7px 10px 6px;
+  border-radius: 16px;
+  font-size: 15px; line-height: 1.38;
+  box-shadow: 0 1px 1px rgba(0,0,0,.08);
+  position: relative;
+}
+.msg.out { align-self: flex-end; background: var(--tg-out); border-bottom-right-radius: 5px; }
+.msg.in { align-self: flex-start; background: var(--tg-in); border-bottom-left-radius: 5px; }
+.msg.pop { animation: pop .32s cubic-bezier(.2,.9,.3,1.2) both; }
+@keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.97); } }
+.fwd { font-size: 13.5px; color: var(--tg-out-meta); margin-bottom: 4px; }
+.fwd b { font-weight: 600; }
+.voice { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 10px; align-items: center; width: 232px; max-width: 100%; }
+.play {
+  width: 42px; height: 42px; border-radius: 50%;
+  background: var(--tg-out-meta);
+  display: grid; place-items: center;
+}
+.play::after {
+  content: ""; margin-left: 3px;
+  border-left: 12px solid var(--tg-out); border-top: 8px solid transparent; border-bottom: 8px solid transparent;
+}
+.wave { display: flex; align-items: center; gap: 2px; height: 24px; }
+.wave i { flex: 1; min-width: 2px; border-radius: 2px; background: var(--tg-out-meta); opacity: .55; }
+.voice-meta { font-size: 12.5px; color: var(--tg-out-meta); margin-top: 3px; }
+.meta {
+  float: right; margin: 6px 0 -3px 10px;
+  font-size: 12px; color: var(--tg-meta); line-height: 1;
+  display: inline-flex; gap: 4px; align-items: center;
+}
+.out .meta { color: var(--tg-out-meta); }
+.meta .edited[hidden] { display: none; }
+.quote {
+  border-left: 3px solid var(--tg-accent);
+  background: color-mix(in srgb, var(--tg-accent) 10%, transparent);
+  border-radius: 4px 6px 6px 4px;
+  padding: 3px 8px 4px;
+  margin-bottom: 5px;
+  font-size: 13.5px; line-height: 1.3;
+}
+.quote b { color: var(--tg-accent); display: block; font-weight: 600; }
+.quote span { color: var(--tg-meta); }
+.bot-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.bot-text.swap { animation: swap .35s ease both; }
+@keyframes swap { from { opacity: .25; } }
+.tg-input {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px 26px;
+  background: var(--tg-bar);
+  color: var(--tg-meta); font-size: 15px;
+}
+.tg-input .field { flex: 1; min-width: 0; }
+.mic { width: 22px; height: 22px; flex: none; }
+.stage-foot {
+  display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap;
+  font: 13px/1.4 var(--f-mono); color: var(--muted);
+}
+.replay {
+  font: 500 13px/1 var(--f-mono);
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 8px 14px; cursor: pointer;
+}
+.replay:hover { border-color: var(--ink); }
+
+/* ---------- figures ---------- */
+.figures {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-block: 1px solid var(--line);
+  margin-bottom: 88px;
+}
+.fig { padding: 26px 22px 26px 0; display: grid; gap: 6px; align-content: start; }
+.fig + .fig { padding-left: 22px; border-left: 1px solid var(--line); }
+.fig strong {
+  font: 800 44px/1 var(--f-display); letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.fig span { color: var(--muted); font-size: 15px; line-height: 1.45; }
+
+/* ---------- sections ---------- */
+section { margin-bottom: 88px; scroll-margin-top: 20px; }
+.sec-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 40px; margin-bottom: 30px; align-items: end; }
+h2 {
+  font: 800 clamp(32px, 4vw, 46px)/1.02 var(--f-display);
+  letter-spacing: -0.03em; margin: 0; text-wrap: balance;
+}
+.sec-head p { margin: 0; color: var(--muted); max-width: 56ch; }
+
+.cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-top: 2px solid var(--ink); }
+.col { padding: 22px 26px 6px 0; min-width: 0; }
+.col + .col { padding-left: 26px; border-left: 1px solid var(--line); }
+.col h3 { font: 800 22px/1.1 var(--f-display); letter-spacing: -0.01em; margin: 0 0 4px; }
+.via { font: 13px/1.4 var(--f-mono); color: var(--muted); margin: 0 0 12px; }
+.col p { margin: 0 0 10px; font-size: 16px; }
+
+.table-wrap { overflow-x: auto; border-top: 2px solid var(--ink); }
+table { width: 100%; border-collapse: collapse; min-width: 640px; font-size: 16px; }
+th, td { text-align: left; padding: 14px 16px 14px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 500 12.5px/1.2 var(--f-mono); text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+td.num { font: 500 16px var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td .model { font-weight: 600; display: block; }
+td .id { font: 13px var(--f-mono); color: var(--muted); }
+.best { background: var(--hl); color: var(--hl-ink); padding: 1px 5px; border-radius: 3px; }
+.caption { font: 13px/1.5 var(--f-mono); color: var(--muted); margin-top: 12px; }
+
+.cmds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 40px; }
+.cmd { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 16px; padding-block: 14px; border-bottom: 1px solid var(--line); align-items: baseline; }
+.cmd code { font: 500 15px var(--f-mono); }
+.cmd span { color: var(--muted); font-size: 16px; }
+
+.term { background: var(--code-bg); color: var(--code-fg); border-radius: 18px; overflow: hidden; }
+.term-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px 12px 20px; border-bottom: 1px solid rgba(255,255,255,.08); font: 13px var(--f-mono); color: var(--code-dim); }
+.copy {
+  font: 500 13px/1 var(--f-mono); cursor: pointer;
+  background: var(--hl); color: var(--hl-ink);
+  border: 0; border-radius: 999px; padding: 8px 14px;
+}
+pre { margin: 0; padding: 20px; overflow-x: auto; font: 14.5px/1.75 var(--f-mono); }
+pre .c { color: var(--code-dim); }
+
+.credits { margin: 0; max-width: 72ch; }
+.credits a { color: var(--ink); text-underline-offset: 2px; }
+footer {
+  border-top: 1px solid var(--line); padding-top: 22px;
+  display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  font: 13px/1.5 var(--f-mono); color: var(--muted);
+}
+
+/* ---------- responsive ---------- */
+@media (max-width: 900px) {
+  .hero { grid-template-columns: minmax(0, 1fr); gap: 40px; }
+  .stage { order: 2; }
+  .steps { max-width: none; }
+  .figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fig:nth-child(3) { padding-left: 0; border-left: 0; }
+  .fig:nth-child(n+3) { border-top: 1px solid var(--line); }
+  .sec-head { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .cols { grid-template-columns: minmax(0, 1fr); }
+  .col, .col + .col { padding: 20px 0 8px; border-left: 0; }
+  .col + .col { border-top: 1px solid var(--line); }
+  .cmds { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  body { padding-inline: 16px; font-size: 16px; }
+  .top nav { display: none; }
+  .lede { font-size: 18px; }
+  .screen { height: 600px; }
+  .figures { grid-template-columns: minmax(0, 1fr); }
+  .fig, .fig + .fig { padding: 20px 0; border-left: 0; }
+  .fig + .fig { border-top: 1px solid var(--line); }
+  .cmd { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <a class="mark" href="#top" aria-label="tldl home">tl<span>;</span>dl</a>
+    <nav aria-label="Sections">
+      <a href="#messengers">Messengers</a>
+      <a href="#engines">Engines</a>
+      <a href="#commands">Commands</a>
+      <a href="#setup">Self-host</a>
+    </nav>
+    <button class="theme" type="button" id="theme" aria-live="polite">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17Z" fill="currentColor"/></svg>
+      <span id="theme-label">Auto</span>
+    </button>
+  </header>
+
+  <main id="top">
+    <div class="hero">
+      <div>
+        <p class="eyebrow">Voice message transcription bot</p>
+        <h1>too long;<br><span class="hl">didn't listen.</span></h1>
+        <p class="lede">Forward a voice message to tldl and read it instead.</p>
+        <p class="sub">Works in Telegram, Signal and WhatsApp. The transcript arrives in the same chat a few seconds later. It runs on your own server, so the audio stays there.</p>
+        <div class="ctas">
+          <a class="btn primary" href="#setup">Self-host it</a>
+          <button class="btn ghost" type="button" id="replay-hero">Watch the demo again</button>
+        </div>
+
+        <ol class="steps" id="steps" aria-label="What happens">
+          <li data-step="1"><span class="n">1</span><span><b>Forward the voice message</b><small>From any chat to your tldl bot. No app to install.</small></span></li>
+          <li data-step="2"><span class="n">2</span><span><b>Watch the status</b><small>The bot replies right away and edits that reply: <code>Received</code>, <code>Transcribing…</code></small></span></li>
+          <li data-step="3"><span class="n">3</span><span><b>Read the transcript</b><small>The status turns into the text, with punctuation. About 3 s for a one-minute message.</small></span></li>
+        </ol>
+      </div>
+
+      <div class="stage">
+        <div class="phone" role="img" aria-label="Animated Telegram chat: a forwarded one-minute voice message, the tldl bot replies with status updates, then the transcript.">
+          <div class="screen">
+            <div class="tg-head">
+              <span class="tg-back" aria-hidden="true">‹</span>
+              <span class="avatar" aria-hidden="true">tl</span>
+              <div>
+                <div class="tg-name">tldl</div>
+                <div class="tg-status" id="tg-status">bot</div>
+              </div>
+            </div>
+
+            <div class="chat" id="chat">
+              <span class="day">Today</span>
+              <div class="msg out" id="voice">
+                <div class="fwd">Forwarded from <b>Anna</b></div>
+                <div class="voice">
+                  <span class="play" aria-hidden="true"></span>
+                  <div>
+                    <div class="wave" id="wave" aria-hidden="true"></div>
+                    <div class="voice-meta">1:00</div>
+                  </div>
+                </div>
+                <span class="meta">18:42 <span aria-hidden="true">✓✓</span></span>
+              </div>
+              <div class="msg in" id="bot">
+                <div class="quote"><b>Anna</b><span>Voice message</span></div>
+                <span class="bot-text" id="bot-text"></span>
+                <span class="meta"><span class="edited" id="edited">edited</span> 18:42</span>
+              </div>
+            </div>
+
+            <div class="tg-input">
+              <span aria-hidden="true">☺</span>
+              <span class="field">Message</span>
+              <svg class="mic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-6a3.5 3.5 0 1 0-7 0v6A3.5 3.5 0 0 0 12 15Zm6-3.5a1 1 0 1 0-2 0 4 4 0 0 1-8 0 1 1 0 1 0-2 0 6 6 0 0 0 5 5.9V20H9a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2h-2v-2.6a6 6 0 0 0 5-5.9Z"/></svg>
+            </div>
+          </div>
+        </div>
+        <div class="stage-foot">
+          <span>Timing shortened. Real: ~3 s for 1 min of audio on an i5-12400.</span>
+          <button class="replay" type="button" id="replay">↻ Replay</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="figures" aria-label="Key numbers">
+      <div class="fig"><strong>3 s</strong><span>to transcribe a 1-minute voice message on a 6-core i5-12400, no GPU</span></div>
+      <div class="fig"><strong>25</strong><span>European languages, detected automatically</span></div>
+      <div class="fig"><strong>~0.1 GB</strong><span>RAM while idle. Models unload after a minute and reload in about a second.</span></div>
+      <div class="fig"><strong>0</strong><span>cloud APIs involved, unless you add one yourself</span></div>
+    </div>
+
+    <section id="messengers" aria-labelledby="h-messengers">
+      <div class="sec-head">
+        <h2 id="h-messengers">Use the messenger you already have</h2>
+        <p>Each messenger is a plugin. Run one or all three, each with its own list of people allowed to use the bot. Anyone else is told their sender ID, so you can add them.</p>
+      </div>
+      <div class="cols">
+        <div class="col">
+          <h3>Telegram</h3>
+          <p class="via">Bot API · long polling</p>
+          <p>Create a bot with @BotFather and paste the token. No public URL or open port needed.</p>
+          <p>Handles voice messages, audio files and round video messages.</p>
+        </div>
+        <div class="col">
+          <h3>Signal</h3>
+          <p class="via">signal-cli-rest-api</p>
+          <p>Give the bot its own number, or link it to your account as a second device.</p>
+          <p>Linked to your account, you forward voice notes to <em>Note to Self</em> and the transcript appears right under them.</p>
+        </div>
+        <div class="col">
+          <h3>WhatsApp</h3>
+          <p class="via">WAHA · webhook</p>
+          <p>Links like WhatsApp Web. Use a second number, or your own account with <em>Message yourself</em>.</p>
+          <p>A second number is safer: WhatsApp doesn't officially allow unofficial clients.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="engines" aria-labelledby="h-engines">
+      <div class="sec-head">
+        <h2 id="h-engines">Pick the engine per chat</h2>
+        <p>Local models run on the CPU through ONNX Runtime. Switch between them in any chat with <code>/engine</code> and compare on your own messages.</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th scope="col">Engine</th><th scope="col">Languages</th><th scope="col">1 min message</th><th scope="col">5 min message</th><th scope="col">Good for</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="model">NVIDIA Parakeet v3</span><span class="id">nemo-parakeet-tdt-0.6b-v3</span></td>
+              <td>25, detected automatically</td>
+              <td class="num"><span class="best">3.0 s</span></td>
+              <td class="num"><span class="best">14.8 s</span></td>
+              <td>Everyday voice messages. The default.</td>
+            </tr>
+            <tr>
+              <td><span class="model">NVIDIA Canary 1B v2</span><span class="id">nemo-canary-1b-v2</span></td>
+              <td>25, set with <code>/lang</code></td>
+              <td class="num">7.8 s</td>
+              <td class="num">39.7 s</td>
+              <td>Noisy or difficult recordings</td>
+            </tr>
+            <tr>
+              <td><span class="model">OpenAI-compatible API</span><span class="id">type: openai</span></td>
+              <td>Depends on the model</td>
+              <td class="num">–</td>
+              <td class="num">–</td>
+              <td>A GPU machine on your network, Groq or OpenAI</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="caption">Measured on an Intel i5-12400 (6 cores, no GPU), int8 models, German test audio.</p>
+    </section>
+
+    <section id="commands" aria-labelledby="h-commands">
+      <div class="sec-head">
+        <h2 id="h-commands">Commands</h2>
+        <p>Send these in any chat with the bot. Settings are remembered per chat.</p>
+      </div>
+      <div class="cmds">
+        <div class="cmd"><code>/engines</code><span>List the engines and show which one this chat uses</span></div>
+        <div class="cmd"><code>/engine canary</code><span>Switch this chat to another engine</span></div>
+        <div class="cmd"><code>/lang de</code><span>Set the spoken language for Canary; <code>/lang auto</code> resets it</span></div>
+        <div class="cmd"><code>/details on</code><span>Show engine, language, audio length and processing time under each transcript</span></div>
+      </div>
+    </section>
+
+    <section id="setup" aria-labelledby="h-setup">
+      <div class="sec-head">
+        <h2 id="h-setup">Self-host it in four commands</h2>
+        <p>Needs Docker. The image is about 880 MB; the default model downloads on first start and takes about 0.8 GB of RAM while loaded.</p>
+      </div>
+      <div class="term">
+        <div class="term-bar"><span>~/repos</span><button class="copy" type="button" id="copy">Copy</button></div>
+<pre id="setup-code"><span>git clone git@github.com:then4p/tldl.git &amp;&amp; cd tldl</span>
+<span>cp config.example.yaml config.yaml   </span><span class="c"># engines, messengers, allowed senders</span>
+<span>cp .env.example .env                 </span><span class="c"># your Telegram bot token</span>
+<span>docker compose up -d</span></pre>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>tldl · self-hosted voice message transcription</span>
+    <p class="credits">
+      Speech recognition by NVIDIA <a href="https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3">Parakeet TDT 0.6B v3</a>
+      and <a href="https://huggingface.co/nvidia/canary-1b-v2">Canary 1B v2</a>
+      (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>), run as int8 ONNX conversions by
+      <a href="https://huggingface.co/istupakov">istupakov</a> (CC BY 4.0) with
+      <a href="https://github.com/istupakov/onnx-asr">onnx-asr</a> (MIT),
+      <a href="https://github.com/snakers4/silero-vad">Silero VAD</a> (MIT) and
+      <a href="https://github.com/microsoft/onnxruntime">ONNX Runtime</a> (MIT).
+    </p>
+  </footer>
+</div>
+
+<script>
+// Theme: "auto" follows the OS (live); "light"/"dark" pin it. Remembered per browser.
+(() => {
+  const root = document.documentElement;
+  const btn = document.getElementById("theme"), label = document.getElementById("theme-label");
+  const media = window.matchMedia("(prefers-color-scheme: dark)");
+  const ORDER = ["auto", "light", "dark"];
+  let stored = null;
+  try { stored = localStorage.getItem("tldl-theme"); } catch {}
+  // No saved choice: keep a theme the viewer app set explicitly, otherwise follow the OS.
+  let mode = ORDER.includes(stored) ? stored : (root.getAttribute("data-theme") || "auto");
+
+  function render() {
+    if (mode === "auto") root.removeAttribute("data-theme");
+    else root.setAttribute("data-theme", mode);
+    const effective = mode === "auto" ? (media.matches ? "dark" : "light") : mode;
+    label.textContent = mode === "auto" ? `Auto · ${effective}` : mode[0].toUpperCase() + mode.slice(1);
+    btn.setAttribute("aria-label", `Theme: ${label.textContent}. Switch theme`);
+  }
+  btn.addEventListener("click", () => {
+    mode = ORDER[(ORDER.indexOf(mode) + 1) % ORDER.length];
+    try { localStorage.setItem("tldl-theme", mode); } catch {}
+    render();
+  });
+  media.addEventListener("change", () => { if (mode === "auto") render(); });
+  render();
+})();
+
+(() => {
+  const TRANSCRIPT =
+    "Hey, it's me. I'm at the shop and they're out of the oat milk you like, " +
+    "there's only the barista one or the unsweetened one. Which one do you want? " +
+    "Oh, and can you call the landlord about the heating? It's still not working " +
+    "in the bedroom. Okay, see you tonight, bye!";
+  const STATUS = ["📥 Received", "⏳ Loading model…", "✍️ Transcribing…"];
+
+  const $ = (id) => document.getElementById(id);
+  const voice = $("voice"), bot = $("bot"), botText = $("bot-text"), edited = $("edited");
+  const status = $("tg-status"), steps = [...document.querySelectorAll("#steps li")];
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // Waveform: fixed pseudo-random bar heights so it looks like speech.
+  const wave = $("wave");
+  let seed = 7;
+  for (let i = 0; i < 38; i++) {
+    seed = (seed * 9301 + 49297) % 233280;
+    const h = 18 + Math.round((seed / 233280) * 82 * (0.55 + 0.45 * Math.sin(i / 3.2) ** 2));
+    const bar = document.createElement("i");
+    bar.style.height = h + "%";
+    wave.appendChild(bar);
+  }
+
+  function setStep(n) {
+    steps.forEach((li, i) => {
+      li.classList.toggle("active", i + 1 === n);
+      li.classList.toggle("done", i + 1 < n);
+    });
+  }
+  function setText(text, isEdit) {
+    botText.textContent = text;
+    botText.classList.remove("swap");
+    void botText.offsetWidth;
+    botText.classList.add("swap");
+    edited.hidden = !isEdit;
+  }
+  function pop(el) {
+    el.hidden = false;
+    el.classList.remove("pop");
+    void el.offsetWidth;
+    el.classList.add("pop");
+  }
+  function showFinal() {
+    voice.hidden = false; bot.hidden = false;
+    botText.textContent = TRANSCRIPT;
+    edited.hidden = false;
+    status.textContent = "bot"; status.classList.remove("typing");
+    setStep(3);
+  }
+
+  let run = 0, loopTimer = null;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  async function play() {
+    const id = ++run;
+    clearTimeout(loopTimer);
+    const alive = async (ms) => { await sleep(ms); return id === run; };
+
+    voice.hidden = true; bot.hidden = true; edited.hidden = true;
+    status.textContent = "bot"; status.classList.remove("typing");
+    setStep(0);
+
+    if (!await alive(700)) return;
+    pop(voice); setStep(1);
+
+    if (!await alive(1300)) return;
+    setText(STATUS[0], false); pop(bot); setStep(2);
+    status.textContent = "typing…"; status.classList.add("typing");
+
+    if (!await alive(1100)) return;
+    setText(STATUS[1], true);
+
+    if (!await alive(1000)) return;
+    setText(STATUS[2], true);
+
+    if (!await alive(2100)) return;
+    setText(TRANSCRIPT, true); setStep(3);
+    status.textContent = "bot"; status.classList.remove("typing");
+
+    if (!await alive(7500)) return;
+    play();
+  }
+
+  function replay() {
+    if (reduce) { showFinal(); return; }
+    play();
+  }
+  $("replay").addEventListener("click", replay);
+  $("replay-hero").addEventListener("click", () => {
+    replay();
+    document.querySelector(".stage").scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
+  });
+
+  // Complete at rest: the finished conversation shows first, then the demo starts.
+  showFinal();
+  if (!reduce) loopTimer = setTimeout(play, 2600);
+
+  // Copy setup commands.
+  const copyBtn = $("copy"), code = $("setup-code");
+  copyBtn.addEventListener("click", () => {
+    const text = code.innerText.split("\n").map((l) => l.replace(/\s+#.*$/, "").trimEnd()).join("\n");
+    const done = () => { copyBtn.textContent = "Copied"; setTimeout(() => (copyBtn.textContent = "Copy"), 1600); };
+    const fallback = () => {
+      const range = document.createRange(); range.selectNodeContents(code);
+      const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+      copyBtn.textContent = "Press Ctrl+C";
+    };
+    try {
+      navigator.clipboard.writeText(text).then(done, fallback);
+    } catch { fallback(); }
+  });
+})();
+</script>
+</body>
+</html>
