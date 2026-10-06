@@ -1,0 +1,41 @@
+# Start the bot with: docker compose up -d
+# Enable bridges with profiles: docker compose --profile signal --profile whatsapp up -d
+name: tldl
+
+services:
+  tldl:
+    build:
+      context: .
+      args:
+        PYTHON: "3.14"
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./data:/app/data
+      - ./models:/app/models
+
+  signal-api:
+    image: bbernhard/signal-cli-rest-api:latest
+    profiles: [signal]
+    restart: unless-stopped
+    environment:
+      MODE: json-rpc
+    ports:
+      - "127.0.0.1:8080:8080"   # only for linking/registering from the host
+    volumes:
+      - ./data/signal-cli:/home/.local/share/signal-cli
+
+  waha:
+    image: devlikeapro/waha:latest
+    profiles: [whatsapp]
+    restart: unless-stopped
+    environment:
+      WAHA_API_KEY: ${WAHA_API_KEY}
+      WHATSAPP_DEFAULT_ENGINE: GOWS
+      WHATSAPP_HOOK_URL: http://tldl:8000/webhook/whatsapp?token=${WEBHOOK_TOKEN}
+      WHATSAPP_HOOK_EVENTS: message   # use message.any together with self_chat: true
+    ports:
+      - "127.0.0.1:3000:3000"   # dashboard for scanning the QR code
+    volumes:
+      - ./data/waha:/app/.sessions

@@ -1,0 +1,80 @@
+# tldl configuration. Strings may reference environment variables as
+# ${VAR} or ${VAR:-default}.
+
+default_engine: parakeet   # per chat: /engine <name>
+# default_language: de     # per chat: /lang <code>; only Canary uses it
+show_details: false        # "[engine · language · duration · time]" footer; per chat: /details on|off
+status_updates: true       # "📥 Received" → "✍️ Transcribing…" → transcript, edited in place
+max_duration: 1800         # seconds; longer voice messages are rejected
+preload: true              # load the default engine at startup instead of on first message
+idle_unload: 60            # free a model after 1 min without use (reloading takes ~1 s);
+                           # per engine: idle_unload: <seconds>, or null to keep it loaded
+state_file: data/state.json
+
+# Shared HTTP server for webhook-based messengers (WhatsApp/WAHA).
+http:
+  host: 0.0.0.0
+  port: 8000
+
+# ---------------------------------------------------------------------------
+# Engines. `type` defaults to `onnx` (local models on ONNX Runtime). Every
+# engine accepts `description`, `concurrency` (parallel jobs, default 1) and
+# `idle_unload` (overrides the global one above).
+# Models download from Hugging Face on first use.
+# ---------------------------------------------------------------------------
+engines:
+  # NVIDIA Parakeet TDT 0.6B v3: 25 European languages, detected automatically
+  # (/lang is ignored), punctuation included. Very fast on CPU.
+  parakeet:
+    description: NVIDIA Parakeet v3 (fast, European languages)
+    model: nemo-parakeet-tdt-0.6b-v3
+    # quantization: int8   # default
+    # threads: 0           # ONNX Runtime threads; 0 = one per physical core
+    # prepack: false       # true: ~10% faster for Canary, +400-550 MB
+    # vad_above: 120       # split audio longer than this (seconds) at pauses
+
+  # NVIDIA Canary 1B v2: same languages, bigger, usually more accurate, ~2x
+  # slower. Can NOT detect the language: uses the chat's /lang, else
+  # `language` below. Without a language it translates to English.
+  canary:
+    description: NVIDIA Canary 1B v2 (accurate, set /lang for non-German)
+    model: nemo-canary-1b-v2
+    language: de
+
+  # Any OpenAI-compatible /v1/audio/transcriptions server (Groq, OpenAI,
+  # speaches, a GPU box, ...).
+  # groq:
+  #   type: openai
+  #   base_url: https://api.groq.com/openai/v1
+  #   model: whisper-large-v3-turbo
+  #   api_key_env: GROQ_API_KEY
+  #   concurrency: 4
+
+# ---------------------------------------------------------------------------
+# Messengers. Set `enabled: false` to switch one off. Each needs either
+# `allowed_senders` (unknown senders are told their id, so you can add it)
+# or `allow_all: true`.
+# ---------------------------------------------------------------------------
+messengers:
+  telegram:
+    type: telegram
+    token: ${TELEGRAM_BOT_TOKEN}
+    allowed_senders: []       # numeric Telegram user ids
+
+  signal:
+    type: signal
+    enabled: false
+    url: http://signal-api:8080
+    number: ${SIGNAL_NUMBER}  # the account registered/linked in signal-cli-rest-api
+    note_to_self: false       # true: linked to your own account, use "Note to Self"
+    allowed_senders: []       # phone numbers (+49...) or Signal UUIDs
+
+  whatsapp:
+    type: whatsapp-waha
+    enabled: false
+    url: http://waha:3000
+    session: default
+    api_key: ${WAHA_API_KEY}
+    webhook_token: ${WEBHOOK_TOKEN}   # WAHA's hook URL must end with ?token=<same value>
+    self_chat: false          # true: linked to your own account, use "Message yourself"
+    allowed_senders: []       # phone numbers without + (e.g. 4917612345678)
