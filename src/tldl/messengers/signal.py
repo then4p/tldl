@@ -17,7 +17,7 @@ from urllib.parse import quote
 
 import aiohttp
 
-from ..models import Audio, AudioRef, IncomingMessage
+from ..models import Audio, AudioRef, Health, IncomingMessage
 from .base import Messenger, MessageHandler
 
 log = logging.getLogger(__name__)
@@ -38,10 +38,13 @@ class SignalMessenger(Messenger):
         **kwargs: Any,
     ) -> None:
         super().__init__(name, handler, **kwargs)
+        # Unquoted "+49..." in YAML is read as a number and loses its "+".
+        self.allowed_senders = {f"+{s}" if s.isdigit() else s for s in self.allowed_senders}
         self.url = url.rstrip("/")
         self.number = number
         self.note_to_self = note_to_self
         self._session: aiohttp.ClientSession | None = None
+        self._connected = False  # receive websocket is open
 
     async def start(self) -> None:
         self._session = aiohttp.ClientSession()
@@ -52,6 +55,7 @@ class SignalMessenger(Messenger):
             try:
                 async with self._session.ws_connect(ws_url, heartbeat=30) as ws:
                     log.info("signal: connected to %s", ws_url)
+                    self._connected = True
                     async for frame in ws:
                         if frame.type == aiohttp.WSMsgType.TEXT:
                             await self._on_frame(frame.data)
@@ -62,6 +66,8 @@ class SignalMessenger(Messenger):
                 raise
             except Exception:
                 log.exception("signal: websocket failed, reconnecting in 5s")
+            finally:
+                self._connected = False
             await asyncio.sleep(5)
 
     async def _on_frame(self, data: str) -> None:
@@ -136,6 +142,9 @@ class SignalMessenger(Messenger):
         # Signal identifies the message to edit by its sent timestamp.
         await self._send(msg, text, edit_timestamp=handle)
 
+    async def send(self, chat_id: str, text: str) -> int | None:
+        return await self._post({"number": self.number, "recipients": [chat_id], "message": text})
+
     async def _send(self, msg: IncomingMessage, text: str, edit_timestamp: int | None = None) -> int | None:
         payload: dict[str, Any] = {
             "number": self.number,
@@ -148,12 +157,36 @@ class SignalMessenger(Messenger):
             payload["notify_self"] = True
         if edit_timestamp is not None:
             payload["edit_timestamp"] = edit_timestamp
+        return await self._post(payload)
+
+    async def _post(self, payload: dict[str, Any]) -> int | None:
         async with self._session.post(f"{self.url}/v2/send", json=payload) as resp:
             if resp.status >= 400:
                 raise RuntimeError(f"signal send failed {resp.status}: {await resp.text()}")
             body = await resp.json(content_type=None)
         timestamp = body.get("timestamp") if isinstance(body, dict) else None
         return int(timestamp) if timestamp else None
+
+    async def check_health(self) -> Health:
+        try:
+            async with self._session.get(f"{self.url}/v1/accounts") as resp:
+                accounts = await resp.json(content_type=None)
+        except Exception as exc:
+            return Health(False, f"signal-cli-rest-api is unreachable at {self.url}: {exc}")
+        if self.number not in (accounts or []):
+            return Health(False, f"{self.number} is not registered in signal-cli-rest-api. Register the number again.")
+        # Lists linked devices: a real round trip to Signal's servers with this account.
+        async with self._session.get(f"{self.url}/v1/devices/{quote(self.number)}") as resp:
+            if resp.status >= 400:
+                error = (await resp.text())[:300]
+                if "499" in error or "Deprecated" in error:
+                    hint = "Signal rejects this signal-cli version. Update the signal-cli-rest-api image (Signal blocks clients older than about 90 days)."
+                else:
+                    hint = "The number may have been unregistered or registered on another device. Register it again."
+                return Health(False, f"Signal rejected the account check ({error}). {hint}")
+        if not self._connected:
+            return Health(False, "Not connected to signal-cli-rest-api's receive websocket. Is it running in json-rpc mode?")
+        return Health(True, self.number)
 
     async def notify_working(self, msg: IncomingMessage) -> None:
         if msg.from_self:

@@ -10,11 +10,11 @@ cp .env.example .env                 # tokens
 docker compose up -d                 # add --profile signal / --profile whatsapp for those bridges
 ```
 
-Unknown senders are told their ID; add it to `allowed_senders`.
+Unknown senders are told their ID; add it to `allowed_senders`. Set `health.alert` to get a message when a messenger stops working; status is also at `:8000/healthz` and `:8000/metrics`.
 
 - **Telegram:** create a bot with @BotFather, put the token in `.env`.
-- **Signal:** link at `http://localhost:8080/v1/qrcodelink?device_name=tldl`, then use a dedicated number or `note_to_self: true`.
-- **WhatsApp** (WAHA, unofficial, so use a spare number): scan the QR code at `http://localhost:3000`; `webhook_token` must match `?token=` in WAHA's hook URL.
+- **Signal:** register the bot's own number in signal-cli-rest-api (a registered number doesn't depend on a phone). Keep the image updated: Signal blocks clients older than about 90 days.
+- **WhatsApp** (WAHA, unofficial, so use a spare number): scan the QR code at `http://localhost:3000`. The bot's phone must open WhatsApp at least every 14 days, or WhatsApp logs the bot out. `webhook_token` must match `?token=` in WAHA's hook URL.
 
 ## Usage
 

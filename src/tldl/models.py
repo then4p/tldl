@@ -69,3 +69,9 @@ class Transcript:
     language: str | None = None
     duration: float | None = None  # audio length in seconds
     elapsed: float | None = None  # wall time spent transcribing
+
+
+@dataclass
+class Health:
+    ok: bool
+    detail: str = ""  # what's wrong and how to fix it (or a short status when ok)

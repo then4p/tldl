@@ -40,6 +40,14 @@ class HttpConfig:
 
 
 @dataclass
+class HealthConfig:
+    interval: float = 300  # seconds between checks
+    alert: dict[str, Any] | None = None  # {"messenger": name, "chat_id": id}; None = only log
+    remind_every: float | None = 86400  # repeat the alert while still failing; None = once
+    confirm: int = 2  # consecutive failed checks before alerting (ignores short blips)
+
+
+@dataclass
 class Config:
     engines: dict[str, dict[str, Any]]
     messengers: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -52,6 +60,7 @@ class Config:
     idle_unload: float | None = None  # default for every engine; engines can override
     state_file: str | None = None
     http: HttpConfig = field(default_factory=HttpConfig)
+    health: HealthConfig = field(default_factory=HealthConfig)
 
     def __post_init__(self) -> None:
         if not self.engines:
@@ -65,6 +74,9 @@ class Config:
             self.default_engine = next(iter(self.engines))
         if self.default_engine not in self.engines:
             raise ValueError(f"default_engine {self.default_engine!r} is not defined in engines")
+        alert = self.health.alert
+        if alert and (alert.get("messenger") not in self.messengers or "chat_id" not in alert):
+            raise ValueError("health.alert needs a configured 'messenger' and a 'chat_id'")
 
 
 def load_config(path: str | Path) -> Config:
@@ -87,6 +99,7 @@ def load_config(path: str | Path) -> Config:
     raw["engines"] = {name: section or {} for name, section in (raw.get("engines") or {}).items()}
     raw["http"] = HttpConfig(**(raw.get("http") or {}))
     raw["http"].port = int(raw["http"].port)
+    raw["health"] = HealthConfig(**(raw.get("health") or {}))
     return Config(**raw)
 
 

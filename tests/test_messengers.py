@@ -82,3 +82,13 @@ def test_waha_group_sender():
     m = WahaMessenger("wa", noop)
     msg = m._parse(_waha(**{"from": "123@g.us", "participant": "4955@c.us", "body": "/engines"}))
     assert msg.chat_id == "123@g.us" and msg.sender_id == "4955"
+
+
+def test_signal_allowlist_numbers_with_or_without_plus():
+    m = SignalMessenger("sig", noop, number="+49bot", allowed_senders=[4915111, "+4915222", "uuid-3"])
+    for ids in ({"+4915111", "uuid-x"}, {"+4915222"}, {"uuid-3"}):
+        msg = m._parse(_signal_env(dataMessage={"timestamp": 1, "message": "/help"}))
+        msg.raw["sender_ids"] = ids
+        assert m.is_authorized(msg), ids
+    msg.raw["sender_ids"] = {"uuid-unknown"}
+    assert not m.is_authorized(msg)

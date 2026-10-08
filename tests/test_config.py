@@ -61,3 +61,18 @@ engines:
 """))
     engines = build_engines(c)
     assert [engines[n].idle_unload for n in "abc"] == [600, 60, None]
+
+
+def test_health_alert_must_name_a_messenger(tmp_path):
+    with pytest.raises(ValueError, match="health.alert"):
+        load_config(write(tmp_path, """
+engines: {a: {}}
+messengers: {tg: {type: telegram, token: x}}
+health: {alert: {messenger: telgram, chat_id: "1"}}
+"""))
+    c = load_config(write(tmp_path, """
+engines: {a: {}}
+messengers: {tg: {type: telegram, token: x}}
+health: {interval: 60, alert: {messenger: tg, chat_id: 1}}
+"""))
+    assert c.health.interval == 60 and c.health.alert["messenger"] == "tg"

@@ -13,6 +13,7 @@ from .config import Config, split_type
 from .messengers.base import Messenger
 from .models import IncomingMessage, Transcript
 from .engines.base import Engine
+from .health import HealthMonitor
 from .registry import ENGINES, MESSENGERS, load_class
 
 log = logging.getLogger(__name__)
@@ -272,27 +273,27 @@ class Bot:
             engine.schedule_unload()
 
         for m in self.messengers.values():
-            await m.start()
-            log.info("messenger %s started", m.name)
+            try:
+                await m.start()
+                log.info("messenger %s started", m.name)
+            except Exception:
+                # Keep the others running; the health monitor reports and alerts.
+                log.exception("messenger %s failed to start", m.name)
 
-        runner = None
-        routes = [r for m in self.messengers.values() for r in m.routes()]
-        if routes:
-            app = web.Application(client_max_size=64 * 1024**2)
-            app.add_routes(routes)
-            app.router.add_get("/healthz", lambda _: web.Response(text="ok"))
-            runner = web.AppRunner(app)
-            await runner.setup()
-            http = self.config.http
-            await web.TCPSite(runner, http.host, http.port).start()
-            log.info("http server listening on %s:%s", http.host, http.port)
+        monitor = HealthMonitor(self.messengers, self.config.health)
+        app = web.Application(client_max_size=64 * 1024**2)
+        app.add_routes([r for m in self.messengers.values() for r in m.routes()] + monitor.routes())
+        runner = web.AppRunner(app)
+        await runner.setup()
+        http = self.config.http
+        await web.TCPSite(runner, http.host, http.port).start()
+        log.info("http server listening on %s:%s", http.host, http.port)
 
         try:
-            await asyncio.gather(*(m.run() for m in self.messengers.values()))
+            await asyncio.gather(monitor.run(), *(m.run() for m in self.messengers.values()))
             await asyncio.Event().wait()  # webhook-only setups: run forever
         finally:
-            if runner:
-                await runner.cleanup()
+            await runner.cleanup()
             for task in list(self._tasks):
                 task.cancel()
             for m in self.messengers.values():

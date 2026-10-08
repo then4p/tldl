@@ -10,7 +10,7 @@ from typing import Any
 
 import aiohttp
 
-from ..models import Audio, AudioRef, IncomingMessage
+from ..models import Audio, AudioRef, Health, IncomingMessage
 from .base import Messenger, MessageHandler
 
 log = logging.getLogger(__name__)
@@ -35,6 +35,7 @@ class TelegramMessenger(Messenger):
         self.file_base = f"{api_url.rstrip('/')}/file/bot{token}"
         self.poll_timeout = poll_timeout
         self._session: aiohttp.ClientSession | None = None
+        self._poll_error: str | None = None  # last getUpdates error, cleared on success
 
     async def _call(self, method: str, **params: Any) -> Any:
         timeout = aiohttp.ClientTimeout(total=self.poll_timeout + 30)
@@ -57,9 +58,11 @@ class TelegramMessenger(Messenger):
                 if offset is not None:
                     params["offset"] = offset
                 updates = await self._call("getUpdates", **params)
+                self._poll_error = None
             except asyncio.CancelledError:
                 raise
-            except Exception:
+            except Exception as exc:
+                self._poll_error = str(exc)
                 log.exception("telegram: polling failed, retrying in 5s")
                 await asyncio.sleep(5)
                 continue
@@ -114,6 +117,19 @@ class TelegramMessenger(Messenger):
             reply_parameters={"message_id": msg.raw["message_id"], "allow_sending_without_reply": True},
         )
         return sent["message_id"]
+
+    async def send(self, chat_id: str, text: str) -> int:
+        return (await self._call("sendMessage", chat_id=chat_id, text=text))["message_id"]
+
+    async def check_health(self) -> Health:
+        try:
+            me = await self._call("getMe")
+        except Exception as exc:
+            return Health(False, f"Telegram API unreachable or bot token invalid: {exc}")
+        if self._poll_error:
+            hint = " Another instance is probably using the same bot token; stop it." if "terminated by other getUpdates" in self._poll_error else ""
+            return Health(False, f"Receiving messages fails: {self._poll_error}.{hint}")
+        return Health(True, "@" + str(me.get("username")))
 
     async def edit(self, msg: IncomingMessage, handle: int, text: str) -> None:
         try:

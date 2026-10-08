@@ -17,7 +17,7 @@ from urllib.parse import quote, urlsplit
 import aiohttp
 from aiohttp import web
 
-from ..models import Audio, AudioRef, IncomingMessage
+from ..models import Audio, AudioRef, Health, IncomingMessage
 from .base import Messenger, MessageHandler
 
 log = logging.getLogger(__name__)
@@ -69,10 +69,14 @@ class WahaMessenger(Messenger):
             body = await request.json()
         except ValueError:
             return web.Response(status=400)
-        if body.get("event") in ("message", "message.any") and body.get("session") == self.session_name:
+        if body.get("session") != self.session_name:
+            return web.Response(text="ok")
+        if body.get("event") in ("message", "message.any"):
             msg = self._parse(body.get("payload") or {})
             if msg:
                 await self.dispatch(msg)
+        elif body.get("event") == "session.status":
+            self.health_changed()
         return web.Response(text="ok")
 
     def _parse(self, p: dict[str, Any]) -> IncomingMessage | None:
@@ -121,7 +125,13 @@ class WahaMessenger(Messenger):
         return AudioRef(fetch=fetch, mime_type=mime)
 
     async def reply(self, msg: IncomingMessage, text: str) -> str | None:
-        payload = {"session": self.session_name, "chatId": msg.chat_id, "text": text, "reply_to": msg.raw.get("id")}
+        return await self._send_text(msg.chat_id, text, reply_to=msg.raw.get("id"))
+
+    async def send(self, chat_id: str, text: str) -> str | None:
+        return await self._send_text(chat_id, text)
+
+    async def _send_text(self, chat_id: str, text: str, reply_to: str | None = None) -> str | None:
+        payload = {"session": self.session_name, "chatId": chat_id, "text": text, "reply_to": reply_to}
         async with self._session.post(f"{self.url}/api/sendText", json=payload) as resp:
             if resp.status >= 400:
                 raise RuntimeError(f"waha sendText failed {resp.status}: {await resp.text()}")
@@ -141,6 +151,25 @@ class WahaMessenger(Messenger):
         async with self._session.put(url, json={"text": text}) as resp:
             if resp.status >= 400:
                 raise RuntimeError(f"waha edit failed {resp.status}: {await resp.text()}")
+
+    async def check_health(self) -> Health:
+        try:
+            async with self._session.get(f"{self.url}/api/sessions/{quote(self.session_name)}") as resp:
+                if resp.status == 404:
+                    return Health(False, f"WAHA has no session '{self.session_name}'. Create and start it in the WAHA dashboard.")
+                resp.raise_for_status()
+                status = (await resp.json(content_type=None)).get("status")
+        except Exception as exc:
+            return Health(False, f"WAHA is unreachable at {self.url}: {exc}")
+        if status == "WORKING":
+            return Health(True, "session working")
+        hints = {
+            "SCAN_QR_CODE": "WhatsApp logged the bot out. Scan the QR code in the WAHA dashboard with the bot's phone, and open WhatsApp on that phone at least every 14 days.",
+            "FAILED": "Login is probably required again. Restart the session in the WAHA dashboard and scan the QR code.",
+            "STOPPED": "Start the session in the WAHA dashboard.",
+            "STARTING": "The session is still starting.",
+        }
+        return Health(False, f"WhatsApp session is {status}. {hints.get(status, 'Check the WAHA dashboard.')}")
 
     async def notify_working(self, msg: IncomingMessage) -> None:
         if msg.from_self:

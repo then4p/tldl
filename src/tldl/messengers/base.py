@@ -6,7 +6,7 @@ from typing import Any
 
 from aiohttp import web
 
-from ..models import IncomingMessage
+from ..models import Health, IncomingMessage
 
 MessageHandler = Callable[["Messenger", IncomingMessage], Awaitable[None]]
 
@@ -43,6 +43,8 @@ class Messenger(ABC):
         self.handler = handler
         self.allowed_senders = {str(s) for s in (allowed_senders or [])}
         self.allow_all = allow_all
+        #: Set by the health monitor; see :meth:`health_changed`.
+        self.on_health_change: Callable[[], None] | None = None
 
     def is_authorized(self, msg: IncomingMessage) -> bool:
         return self.allow_all or msg.from_self or msg.sender_id in self.allowed_senders
@@ -68,6 +70,23 @@ class Messenger(ABC):
     async def edit(self, msg: IncomingMessage, handle: Any, text: str) -> None:
         """Replace the text of a message previously sent with :meth:`reply`."""
         raise NotImplementedError
+
+    async def send(self, chat_id: str, text: str) -> Any:
+        """Send ``text`` to ``chat_id`` on its own (used for health alerts)."""
+        raise NotImplementedError
+
+    async def check_health(self) -> Health:
+        """Check that the messenger can still receive and send messages.
+
+        Called periodically by the health monitor. Return a failing
+        :class:`Health` with a detail that says what's wrong and how to fix it.
+        """
+        return Health(True)
+
+    def health_changed(self) -> None:
+        """Ask for an immediate health check, e.g. when the platform reports a status change."""
+        if self.on_health_change:
+            self.on_health_change()
 
     async def notify_working(self, msg: IncomingMessage) -> None:
         """Optional "typing..." indicator / reaction while transcribing."""

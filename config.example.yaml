@@ -11,7 +11,17 @@ idle_unload: 60            # free a model after 1 min without use (reloading tak
                            # per engine: idle_unload: <seconds>, or null to keep it loaded
 state_file: data/state.json
 
-# Shared HTTP server for webhook-based messengers (WhatsApp/WAHA).
+# Checks every few minutes that each messenger still works (e.g. WhatsApp
+# logged the bot out, or Signal blocks an outdated bridge) and tells you.
+# Status is also served at :8000/healthz (JSON) and :8000/metrics (Prometheus).
+health:
+  interval: 300            # seconds between checks
+  # alert:                 # where to send problems; without it they're only logged
+  #   messenger: telegram
+  #   chat_id: "123456789" # your chat with the bot (for Telegram: your user id)
+  remind_every: 86400      # repeat the alert daily while it's still broken
+
+# HTTP server: webhooks (WhatsApp/WAHA), /healthz and /metrics.
 http:
   host: 0.0.0.0
   port: 8000
@@ -59,7 +69,8 @@ messengers:
   telegram:
     type: telegram
     token: ${TELEGRAM_BOT_TOKEN}
-    allowed_senders: []       # numeric Telegram user ids
+    allowed_senders:          # Telegram user ids (the bot tells unknown senders theirs)
+      # - 123456789   # name
 
   signal:
     type: signal
@@ -67,7 +78,8 @@ messengers:
     url: http://signal-api:8080
     number: ${SIGNAL_NUMBER}  # the account registered/linked in signal-cli-rest-api
     note_to_self: false       # true: linked to your own account, use "Note to Self"
-    allowed_senders: []       # phone numbers (+49...) or Signal UUIDs
+    allowed_senders:          # Signal UUIDs (the bot tells unknown senders theirs). Phone numbers only match senders who share their number
+      # - 0f4c1d2e-…   # name
 
   whatsapp:
     type: whatsapp-waha
@@ -77,4 +89,5 @@ messengers:
     api_key: ${WAHA_API_KEY}
     webhook_token: ${WEBHOOK_TOKEN}   # WAHA's hook URL must end with ?token=<same value>
     self_chat: false          # true: linked to your own account, use "Message yourself"
-    allowed_senders: []       # phone numbers without + (e.g. 4917612345678)
+    allowed_senders:          # phone numbers without + (e.g. 4917612345678)
+      # - 4917612345678   # name
