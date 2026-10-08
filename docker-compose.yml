@@ -10,6 +10,9 @@ services:
         PYTHON: "3.14"
     restart: unless-stopped
     env_file: .env
+    # CPU cap for the whole container, e.g. TLDL_CPUS=5 in .env. 0 = no limit.
+    # Set the engines' `threads` to match, so they don't fight over the quota.
+    cpus: ${TLDL_CPUS:-0}
     volumes:
       - ./config.yaml:/app/config.yaml:ro
       - ./data:/app/data

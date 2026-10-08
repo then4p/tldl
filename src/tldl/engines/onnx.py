@@ -104,7 +104,9 @@ class OnnxEngine(Engine):
             vad = onnx_asr.load_vad("silero", providers=self.providers)
             self._vad_model = self._model.with_vad(vad, **self.vad_options)
         if self.detect_language:
-            self._detector = onnx_asr.load_model(self.detect_language, quantization="int8", providers=self.providers).asr
+            self._detector = onnx_asr.load_model(
+                self.detect_language, quantization="int8", providers=self.providers, sess_options=sess_options
+            ).asr
 
     def _detect(self, samples) -> str:
         # Encoder + one decoder step after <|startoftranscript|>: the scores of
