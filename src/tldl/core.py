@@ -27,7 +27,9 @@ Forward or send me a voice message and I'll reply with the text.
 /lang <code|auto> - set the spoken language (e.g. de), or detect it
 /details on|off - show engine and timing under each transcript
 /engines, /engine <name> - list or switch engines (VIPs)
-/help - this message"""
+/help - this message
+
+tldl is free software (AGPL-3.0). Source: https://github.com/then4p/tldl"""
 
 # For "this sounds like Japanese"; other languages are shown by their code.
 LANGUAGE_NAMES = {

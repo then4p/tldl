@@ -40,3 +40,7 @@ Plugins: set `type: package.module:Class` and subclass `tldl.engines.Engine` or 
 ## Credits
 
 Models are downloaded at runtime, not shipped. [Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) and [Canary 1B v2](https://huggingface.co/nvidia/canary-1b-v2) by NVIDIA, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); used as int8 ONNX conversions by [istupakov](https://huggingface.co/istupakov) (CC BY 4.0). [Silero VAD](https://github.com/snakers4/silero-vad), [onnx-asr](https://github.com/istupakov/onnx-asr) and [ONNX Runtime](https://github.com/microsoft/onnxruntime): MIT. The Docker image runs Debian's [FFmpeg](https://ffmpeg.org) (GPL) as a separate program. Bridges run in their own containers: [signal-cli-rest-api](https://github.com/bbernhard/signal-cli-rest-api) (MIT), [signal-cli](https://github.com/AsamK/signal-cli) (GPL-3.0), [WAHA](https://github.com/devlikeapro/waha) (Apache-2.0).
+
+## License
+
+tldl is licensed under the [GNU Affero General Public License v3.0](LICENSE) or later. If you run a modified version for other people, offer them its source code; the bot's `/help` links to the source.
