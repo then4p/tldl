@@ -201,32 +201,31 @@ footer a { color: inherit; }
 
       <div class="panel" id="messengers" data-tab="Messengers">
         <h2>Use the messenger you already have.</h2>
-        <div class="grid" style="--cols: 3">
+        <div class="grid">
           <p class="item"><b>Telegram</b> <span>Create a bot with @BotFather and paste the token. No public URL needed.</span></p>
-          <p class="item"><b>Signal</b> <span>Give the bot its own number, or link it to yours and forward to Note to Self.</span></p>
-          <p class="item"><b>WhatsApp</b> <span>Through WAHA. Use a spare number: WhatsApp doesn't allow unofficial clients.</span></p>
+          <p class="item"><b>Signal</b> <span>Register a number for the bot in signal-cli-rest-api. It doesn't need a phone after that.</span></p>
         </div>
       </div>
 
       <div class="panel" id="engines" data-tab="Engines">
-        <h2>Switch the engine in any chat.</h2>
+        <h2>Two engines, picked for you.</h2>
         <div class="table-wrap">
           <table>
             <tr><th>Engine</th><th>Languages</th><th>1 min</th><th>5 min</th></tr>
             <tr><td>NVIDIA Parakeet v3</td><td>25, detected automatically</td><td>3.0 s</td><td>14.8 s</td></tr>
-            <tr><td>NVIDIA Canary 1B v2</td><td>25, set with <code>/lang</code></td><td>7.8 s</td><td>39.7 s</td></tr>
+            <tr><td>NVIDIA Canary 1B v2</td><td>25, detected automatically</td><td>7.8 s</td><td>39.7 s</td></tr>
           </table>
         </div>
-        <p class="note">Measured on an Intel i5-12400 without a GPU. Parakeet is the default; Canary is more accurate on difficult audio. Any OpenAI-compatible API works too.</p>
+        <p class="note">Measured on an Intel i5-12400 without a GPU. Free users get Parakeet; VIPs get Canary, which is more accurate on difficult audio. Any OpenAI-compatible API works too.</p>
       </div>
 
       <div class="panel" id="commands" data-tab="Commands">
         <h2>Send these in any chat with the bot.</h2>
         <dl>
-          <dt>/engines</dt><dd>List the engines and show the one this chat uses</dd>
-          <dt>/engine canary</dt><dd>Switch this chat to another engine</dd>
-          <dt>/lang de</dt><dd>Set the spoken language for Canary (<code>/lang auto</code> resets it)</dd>
+          <dt>/info</dt><dd>Your free minutes left today, and your ID</dd>
           <dt>/details on</dt><dd>Show engine and timing under each transcript</dd>
+          <dt>/engines</dt><dd>List the engines and show the one this chat uses</dd>
+          <dt>/engine canary</dt><dd>Switch this chat to another engine (VIPs)</dd>
         </dl>
       </div>
 
