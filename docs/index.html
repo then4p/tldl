@@ -115,6 +115,10 @@ footer a { color: inherit; }
   dd { margin-bottom: 10px; }
   .bar a span { display: none; }
   pre { font-size: 12.5px; padding: 52px 16px 18px; }
+  /* A narrower phone, so the waveform behind it stays visible. */
+  :root { --ph-width: min(280px, 72vw); --ph-height: 580px; --ph-radius: 36px; --ph-pad: 8px; }
+  .msg { font-size: 14px; }
+  .wave i { min-width: 1px; }
 }
 </style>
 </head>
