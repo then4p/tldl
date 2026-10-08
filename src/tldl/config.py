@@ -40,6 +40,14 @@ class HttpConfig:
 
 
 @dataclass
+class AccessConfig:
+    public: bool = False  # True: anyone may use the bot within the daily limits; False: VIPs only
+    daily_limit: float = 300  # seconds of audio per non-VIP user per day
+    daily_total: float = 7200  # seconds per day for all non-VIP users together
+    timezone: str = "Europe/Berlin"  # the day starts at midnight here
+
+
+@dataclass
 class HealthConfig:
     interval: float = 300  # seconds between checks
     alert: dict[str, Any] | None = None  # {"messenger": name, "chat_id": id}; None = only log
@@ -51,7 +59,8 @@ class HealthConfig:
 class Config:
     engines: dict[str, dict[str, Any]]
     messengers: dict[str, dict[str, Any]] = field(default_factory=dict)
-    default_engine: str | None = None
+    default_engine: str | None = None  # everyone's engine; VIPs can switch with /engine
+    vip_engine: str | None = None  # VIPs' default engine (else default_engine)
     default_language: str | None = None
     show_details: bool = False  # default for new chats; toggled per chat with /details
     status_updates: bool = True  # progress message that turns into the transcript
@@ -61,6 +70,7 @@ class Config:
     state_file: str | None = None
     http: HttpConfig = field(default_factory=HttpConfig)
     health: HealthConfig = field(default_factory=HealthConfig)
+    access: AccessConfig = field(default_factory=AccessConfig)
 
     def __post_init__(self) -> None:
         if not self.engines:
@@ -70,10 +80,18 @@ class Config:
         for name, section in self.messengers.items():
             if "type" not in section:
                 raise ValueError(f"messengers.{name} needs a 'type'")
+            if "allowed_senders" in section or "allow_all" in section:
+                raise ValueError(
+                    f"messengers.{name}: 'allowed_senders' and 'allow_all' were replaced by "
+                    "'vips' (a map of id: name) and access.public"
+                )
+            if not isinstance(section.get("vips") or {}, dict):
+                raise ValueError(f"messengers.{name}.vips must be a map of id: name")
         if self.default_engine is None:
             self.default_engine = next(iter(self.engines))
-        if self.default_engine not in self.engines:
-            raise ValueError(f"default_engine {self.default_engine!r} is not defined in engines")
+        for key in ("default_engine", "vip_engine"):
+            if getattr(self, key) is not None and getattr(self, key) not in self.engines:
+                raise ValueError(f"{key} {getattr(self, key)!r} is not defined in engines")
         alert = self.health.alert
         if alert and (alert.get("messenger") not in self.messengers or "chat_id" not in alert):
             raise ValueError("health.alert needs a configured 'messenger' and a 'chat_id'")
@@ -100,6 +118,7 @@ def load_config(path: str | Path) -> Config:
     raw["http"] = HttpConfig(**(raw.get("http") or {}))
     raw["http"].port = int(raw["http"].port)
     raw["health"] = HealthConfig(**(raw.get("health") or {}))
+    raw["access"] = AccessConfig(**(raw.get("access") or {}))
     return Config(**raw)
 
 

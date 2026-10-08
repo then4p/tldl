@@ -141,7 +141,7 @@ async def test_signal_checks():
         health = await m.check_health()
         assert not health.ok and "Update the signal-cli-rest-api image" in health.detail
         state["accounts"] = []
-        assert "not registered" in (await m.check_health()).detail
+        assert "restart signal-api" in (await m.check_health()).detail
         await server.close()
         assert "unreachable" in (await m.check_health()).detail
     finally:

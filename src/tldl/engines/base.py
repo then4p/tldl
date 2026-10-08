@@ -12,6 +12,14 @@ from ..models import Audio, Transcript
 
 StageCallback = Callable[[str], Awaitable[None]]
 
+
+class UnsupportedLanguage(Exception):
+    """The audio is in a language the engine can't transcribe."""
+
+    def __init__(self, language: str) -> None:
+        super().__init__(language)
+        self.language = language
+
 log = logging.getLogger(__name__)
 
 try:

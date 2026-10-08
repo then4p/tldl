@@ -46,6 +46,9 @@ class AudioRef:
     fetch: Callable[[], Awaitable[Audio]]
     mime_type: str | None = None
     duration: float | None = None
+    #: Deletes the messenger's own copy (e.g. signal-cli's attachment file);
+    #: called once the message is handled, whatever the outcome.
+    discard: Callable[[], Awaitable[None]] | None = None
 
 
 @dataclass

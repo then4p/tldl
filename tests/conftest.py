@@ -64,7 +64,7 @@ def text(t, sender="1", chat="c1"):
 
 @pytest.fixture
 def make_bot(tmp_path):
-    def make(messenger_cls=FakeMessenger, **cfg):
+    def make(messenger_cls=FakeMessenger, welcomed=True, **cfg):
         engines = {"a": FakeEngine("a"), "b": FakeEngine("b", text="from b")}
         config = Config(
             engines={"a": {"type": "x"}, "b": {"type": "x"}},
@@ -72,8 +72,10 @@ def make_bot(tmp_path):
             **cfg,
         )
         bot = Bot(config, engines=engines, messengers={})
-        messenger = messenger_cls("fake", bot.handle, allowed_senders=["1"])
+        messenger = messenger_cls("fake", bot.handle, vips={"1": "Tester"})
         bot.messengers = {"fake": messenger}
+        if welcomed:  # most tests aren't about the first-contact welcome
+            bot._welcomed |= {"fake:1", "fake:999", "fake:me", "fake:2", "fake:3"}
         return bot, messenger
 
     return make

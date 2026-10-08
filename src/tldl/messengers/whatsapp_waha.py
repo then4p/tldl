@@ -30,6 +30,7 @@ def _user_part(jid: str) -> str:
 class WahaMessenger(Messenger):
     max_message_length = 4000
     supports_edit = True
+    label = "WhatsApp"
 
     def __init__(
         self,

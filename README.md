@@ -10,7 +10,7 @@ cp .env.example .env                 # tokens
 docker compose up -d                 # add --profile signal / --profile whatsapp for those bridges
 ```
 
-Unknown senders are told their ID; add it to `allowed_senders`. Set `health.alert` to get a message when a messenger stops working; status is also at `:8000/healthz` and `:8000/metrics`.
+Everyone gets a welcome message with their ID on their first message. Add IDs to a messenger's `vips` (`id: name`) for unlimited use with `vip_engine`. With `access.public: true` everyone else can use the bot too, within `daily_limit` per person and `daily_total` for all of them (default 5 min and 2 h a day); `/info` shows what's left. Set `health.alert` to get a message when a messenger stops working; status is also at `:8000/healthz` and `:8000/metrics`.
 
 - **Telegram:** create a bot with @BotFather, put the token in `.env`.
 - **Signal:** register the bot's own number in signal-cli-rest-api (a registered number doesn't depend on a phone). Keep the image updated: Signal blocks clients older than about 90 days.
@@ -18,9 +18,9 @@ Unknown senders are told their ID; add it to `allowed_senders`. Set `health.aler
 
 ## Usage
 
-Forward a voice message to the bot. Commands: `/engines`, `/engine <name>`, `/lang <code|auto>`, `/details on|off`, `/help`.
+Forward a voice message to the bot. Commands: `/info`, `/lang <code|auto>`, `/details on|off`, `/help`, and for VIPs `/engines` and `/engine <name>`.
 
-Engines: `onnx` runs local models on the CPU: **Parakeet v3** (fast, 25 European languages, detects the language) or **Canary 1B v2** (more accurate, needs `/lang` or `language`). `openai` uses any OpenAI-compatible transcription API. Compare them with `docker compose exec tldl tldl transcribe audio.ogg -e parakeet -e canary`.
+Engines: `onnx` runs local models on the CPU: **Parakeet v3** (fast, 25 European languages, detects the language) or **Canary 1B v2** (more accurate; a small Whisper model detects the language first). `openai` uses any OpenAI-compatible transcription API. Compare them with `docker compose exec tldl tldl transcribe audio.ogg -e parakeet -e canary`.
 
 | Engine | 1 min message | 5 min message |
 |---|---|---|

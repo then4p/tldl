@@ -35,16 +35,16 @@ async def test_details_off_by_default_and_toggle(make_bot):
     assert m.replies[-1] == "hello world"
 
 
-async def test_unauthorized_does_not_download(make_bot):
-    bot, m = make_bot()
+async def test_private_mode_rejects_non_vips_without_downloading(make_bot):
+    bot, m = make_bot()  # access.public defaults to False
     msg, fetched = voice(sender="999")
     await bot.handle(m, msg)
     await settle(bot)
     assert not fetched
-    assert "999" in m.replies[0]
+    assert "private" in m.replies[0] and "999" in m.replies[0]
 
 
-async def test_from_self_is_authorized(make_bot):
+async def test_from_self_counts_as_vip(make_bot):
     bot, m = make_bot()
     await bot.handle(m, voice(sender="me", from_self=True)[0])
     await settle(bot)
@@ -229,3 +229,19 @@ async def test_preloaded_engine_unloads_when_never_used(make_bot):
     assert not engine.loaded
     run.cancel()
     await asyncio.gather(run, return_exceptions=True)
+
+
+async def test_audio_is_discarded_whatever_happens(make_bot):
+    for sender, fail in (("1", False), ("1", True), ("999", False)):  # ok, failure, rejected
+        bot, m = make_bot()
+        bot.engines["a"].fail = fail
+        msg, _ = voice(sender=sender)
+        discarded = []
+
+        async def discard():
+            discarded.append(True)
+
+        msg.audio.discard = discard
+        await bot.handle(m, msg)
+        await settle(bot)
+        assert discarded == [True], (sender, fail)

@@ -26,6 +26,7 @@ log = logging.getLogger(__name__)
 class SignalMessenger(Messenger):
     max_message_length = 6000
     supports_edit = True
+    label = "Signal"
 
     def __init__(
         self,
@@ -39,12 +40,13 @@ class SignalMessenger(Messenger):
     ) -> None:
         super().__init__(name, handler, **kwargs)
         # Unquoted "+49..." in YAML is read as a number and loses its "+".
-        self.allowed_senders = {f"+{s}" if s.isdigit() else s for s in self.allowed_senders}
+        self.vips = {f"+{k}" if k.isdigit() else k: v for k, v in self.vips.items()}
         self.url = url.rstrip("/")
         self.number = number
         self.note_to_self = note_to_self
         self._session: aiohttp.ClientSession | None = None
         self._connected = False  # receive websocket is open
+        self._pending: set[asyncio.Task] = set()
 
     async def start(self) -> None:
         self._session = aiohttp.ClientSession()
@@ -101,10 +103,11 @@ class SignalMessenger(Messenger):
 
         audio = None
         for att in data.get("attachments") or []:
-            mime = att.get("contentType", "")
-            if mime.startswith("audio/"):
+            if audio is None and att.get("contentType", "").startswith("audio/"):
                 audio = self._audio_ref(att)
-                break
+            else:
+                # signal-cli saves every attachment to disk; drop the ones we don't use right away.
+                self._discard_later(att["id"])
 
         return IncomingMessage(
             messenger=self.name,
@@ -128,12 +131,26 @@ class SignalMessenger(Messenger):
                 resp.raise_for_status()
                 return Audio(data=await resp.read(), mime_type=mime, filename=filename)
 
-        return AudioRef(fetch=fetch, mime_type=mime)
+        return AudioRef(fetch=fetch, mime_type=mime, discard=lambda: self._delete_attachment(att_id))
 
-    def is_authorized(self, msg: IncomingMessage) -> bool:
-        # Allow listing either the phone number or the ACI/UUID.
-        ids = msg.raw.get("sender_ids") or {msg.sender_id}
-        return self.allow_all or msg.from_self or bool(ids & self.allowed_senders)
+    async def _delete_attachment(self, att_id: str) -> None:
+        async with self._session.delete(f"{self.url}/v1/attachments/{quote(att_id)}") as resp:
+            if resp.status >= 400:
+                log.warning("signal: could not delete attachment: %s", resp.status)
+
+    def _discard_later(self, att_id: str) -> None:
+        task = asyncio.create_task(self._delete_attachment(att_id))
+        self._pending.add(task)
+        task.add_done_callback(self._pending.discard)
+
+    def vip_name(self, msg: IncomingMessage) -> str | None:
+        # VIPs may be listed by UUID or by phone number (only visible if the sender shares it).
+        if msg.from_self:
+            return "you"
+        for sender_id in msg.raw.get("sender_ids") or {msg.sender_id}:
+            if sender_id in self.vips:
+                return self.vips[sender_id]
+        return None
 
     async def reply(self, msg: IncomingMessage, text: str) -> int | None:
         return await self._send(msg, text)
@@ -164,6 +181,9 @@ class SignalMessenger(Messenger):
             if resp.status >= 400:
                 raise RuntimeError(f"signal send failed {resp.status}: {await resp.text()}")
             body = await resp.json(content_type=None)
+        # json-rpc mode answers [{"timestamp": "..."}] (one entry per send), not the documented {"timestamp": ...}.
+        if isinstance(body, list):
+            body = body[0] if body else {}
         timestamp = body.get("timestamp") if isinstance(body, dict) else None
         return int(timestamp) if timestamp else None
 
@@ -174,7 +194,9 @@ class SignalMessenger(Messenger):
         except Exception as exc:
             return Health(False, f"signal-cli-rest-api is unreachable at {self.url}: {exc}")
         if self.number not in (accounts or []):
-            return Health(False, f"{self.number} is not registered in signal-cli-rest-api. Register the number again.")
+            return Health(False, f"{self.number} isn't loaded in signal-cli-rest-api. After a reboot it sometimes "
+                          "doesn't load the account: run `docker compose restart signal-api`. If that doesn't help, "
+                          "register the number again.")
         # Lists linked devices: a real round trip to Signal's servers with this account.
         async with self._session.get(f"{self.url}/v1/devices/{quote(self.number)}") as resp:
             if resp.status >= 400:

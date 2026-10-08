@@ -6,13 +6,29 @@ Models download from Hugging Face on first use (into ``HF_HOME``).
 import asyncio
 from typing import Any
 
+import numpy as np
+
 from ..audio import SAMPLE_RATE, decode
 from ..models import Audio, Transcript
-from .base import Engine
+from .base import Engine, UnsupportedLanguage
 
 # Encoder-decoder models silently drop everything after their ~30 s input
 # window, so their audio is always split into VAD segments (max 20 s).
 _SHORT_WINDOW_MODELS = ("canary", "whisper")
+
+#: Languages Canary 1B v2 (and Parakeet v3) transcribe.
+EU_LANGUAGES = frozenset("bg cs da de el en es et fi fr hr hu it lt lv mt nl pl pt ro ru sk sl sv uk".split())
+
+
+def pick_language(scores: dict[str, float], supported: frozenset[str]) -> str:
+    """Whisper's language scores -> best supported language.
+
+    Raises UnsupportedLanguage when the overall best guess isn't supported.
+    """
+    top = max(scores, key=scores.__getitem__)
+    if top not in supported:
+        raise UnsupportedLanguage(top)
+    return max(supported & scores.keys(), key=scores.__getitem__)
 
 
 class OnnxEngine(Engine):
@@ -28,6 +44,7 @@ class OnnxEngine(Engine):
         memory_arena: bool = False,
         prepack: bool = False,
         language: str | None = None,
+        detect_language: str | None = None,
         vad: bool | str = "auto",
         vad_above: float | None = None,
         vad_options: dict[str, Any] | None = None,
@@ -51,6 +68,10 @@ class OnnxEngine(Engine):
         # falling back to this engine's `language`.
         self.accepts_language = "canary" in model.lower()
         self.language = language
+        # A Whisper model (e.g. onnx-community/whisper-base) that only detects
+        # the language when the chat hasn't set one with /lang (~0.3 s, ~300 MB).
+        self.detect_language = detect_language if self.accepts_language else None
+        self._detector = None
         # VAD splits audio at pauses into segments of at most 20 s. "auto"
         # splits audio longer than `vad_above` seconds: always for short-window
         # models, above 2 min for Parakeet (which is more accurate unsplit but
@@ -60,7 +81,7 @@ class OnnxEngine(Engine):
         self.vad_above = vad_above if vad_above is not None else (0 if short_window else 120)
         # Generous padding: silero's defaults clip word edges.
         self.vad_options = {"speech_pad_ms": 300, "min_silence_duration_ms": 500, **(vad_options or {})}
-        self._model = self._vad_model = None
+        self._model = self._vad_model = self._detector = None
 
     def _load(self) -> None:
         import onnx_asr
@@ -82,6 +103,23 @@ class OnnxEngine(Engine):
         if self.vad:
             vad = onnx_asr.load_vad("silero", providers=self.providers)
             self._vad_model = self._model.with_vad(vad, **self.vad_options)
+        if self.detect_language:
+            self._detector = onnx_asr.load_model(self.detect_language, quantization="int8", providers=self.providers).asr
+
+    def _detect(self, samples) -> str:
+        # Encoder + one decoder step after <|startoftranscript|>: the scores of
+        # the language tokens. (onnx-asr's Whisper does this internally but only
+        # returns the transcript, so this uses its building blocks.)
+        whisper = self._detector
+        clip = samples[: 30 * SAMPLE_RATE][None, :]
+        encoded = whisper._encode(clip, np.array([clip.shape[1]]))
+        logits, _ = whisper._decode(np.array([[whisper._bos_token_id]]), whisper._create_state(), encoded)
+        scores = {
+            token[2:-2]: float(logits[0, -1, token_id])
+            for token, token_id in whisper._tokens.items()
+            if token.startswith("<|") and token.endswith("|>") and 2 <= len(token) - 4 <= 3 and token[2:-2].isalpha() and token[2:-2].islower()
+        }
+        return pick_language(scores, EU_LANGUAGES)
 
     async def load(self) -> None:
         await asyncio.to_thread(self._load)
@@ -100,9 +138,14 @@ class OnnxEngine(Engine):
 
     async def _transcribe(self, audio: Audio, language: str | None) -> Transcript:
         samples = await decode(audio)
-        language = (language or self.language) if self.accepts_language else None
+        if not self.accepts_language:
+            language = None
+        elif not language and self._detector is not None:
+            language = await asyncio.to_thread(self._detect, samples)
+        else:
+            language = language or self.language
         text = await asyncio.to_thread(self._run, samples, language)
         return Transcript(text=text, language=language, duration=len(samples) / SAMPLE_RATE)
 
     async def close(self) -> None:
-        self._model = self._vad_model = None
+        self._model = self._vad_model = self._detector = None

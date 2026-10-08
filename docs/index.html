@@ -67,6 +67,17 @@ b { font-weight: 600; }
 #field { inset: 0; width: 100%; height: 100%; }
 .stage::before { content: ""; width: min(92%, 440px); aspect-ratio: 1; top: 50%; left: 50%; transform: translate(-50%, -54%); border-radius: 50%; background: var(--peach); opacity: .55; }
 
+.try {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px 32px; align-items: center;
+  background: color-mix(in srgb, var(--peach) 35%, var(--surface)); border-radius: 28px; padding: 28px 34px; margin-bottom: 44px;
+}
+.try h2 { font-size: 32px; line-height: 1.1; margin: 0 0 6px; }
+.try p { color: var(--muted); }
+.try nav { display: flex; flex-wrap: wrap; gap: 10px; }
+.cta { font: 600 16px/1 var(--f-body); color: var(--bg); background: var(--ink); border-radius: 999px; padding: 15px 22px; text-decoration: none; }
+.cta:hover { background: var(--leaf); }
+.try small { grid-column: 1 / -1; font-size: 14px; color: var(--muted); }
+.try code { font: 14px var(--f-mono); color: var(--ink); }
 .more { margin-bottom: 56px; scroll-margin-top: 16px; }
 .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
 .tab { font: 600 15px/1 var(--f-body); color: var(--muted); background: none; border: 1.5px solid var(--rule); border-radius: 999px; padding: 11px 18px; cursor: pointer; }
@@ -94,12 +105,12 @@ footer { border-top: 1px solid var(--rule); padding-top: 16px; display: flex; ju
 footer a { color: inherit; }
 
 @media (max-width: 860px) {
-  .hero, .grid { grid-template-columns: minmax(0, 1fr); }
+  .hero, .grid, .try { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 480px) {
   body { padding-inline: 16px; font-size: 17px; }
   .lede { font-size: 19px; }
-  .panel { padding: 22px 20px; border-radius: 22px; }
+  .panel, .try { padding: 22px 20px; border-radius: 22px; }
   dl { grid-template-columns: minmax(0, 1fr); gap: 2px; }
   dd { margin-bottom: 10px; }
   .bar a span { display: none; }
@@ -126,7 +137,7 @@ footer a { color: inherit; }
           <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15v-3a8 8 0 0 1 13.7-5.6M20 12v3M4 15h3v5H5a1 1 0 0 1-1-1v-4Zm16 0h-3v5h2a1 1 0 0 0 1-1v-4ZM3 3l18 18"/></svg>
             <p><b>No headphones.</b> <span>Read it in a meeting, on the train, in bed.</span></p></li>
           <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 11V8a6 6 0 1 1 12 0v3M5 11h14v10H5zM12 15v2"/></svg>
-            <p><b>Stays private.</b> <span>Runs on your own server. Audio is never stored.</span></p></li>
+            <p><b>Stays private.</b> <span>Transcribed on a private server. Audio is never stored.</span></p></li>
           <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
             <p><b>About 3 seconds.</b> <span>For a whole minute of voice.</span></p></li>
         </ul>
@@ -159,15 +170,27 @@ footer a { color: inherit; }
       </div>
     </div>
 
+    <section class="try" id="try" aria-labelledby="try-title">
+      <div>
+        <h2 id="try-title">Try it now</h2>
+        <p>Send the bot a voice message. 5 minutes of audio a day are free, no sign-up.</p>
+      </div>
+      <nav aria-label="Open the bot">
+        <a class="cta" href="https://signal.me/#eu/hZ036yW39OTiuvuIHX32Kbl3ZzuPgP4cMZSQcefg_mGbc2lAhHtJF6clMuD4nAir">Open in Signal</a>
+        <a class="cta" href="https://t.me/too_long_didnt_listen_bot">Open in Telegram</a>
+      </nav>
+      <small>Signal: <code>tldl.1337</code> · Telegram: <code>@too_long_didnt_listen_bot</code></small>
+    </section>
+
     <!-- Each .panel becomes a tab labeled by data-tab; #id links open it. Without JS they simply stack. -->
     <section class="more" aria-label="Details">
       <div class="panel" id="privacy" data-tab="Privacy">
         <h2>Your voice messages stay yours.</h2>
         <div class="grid">
-          <p class="item"><b>Audio stays in memory.</b> <span>It's decoded, transcribed and dropped. Nothing is written to disk.</span></p>
+          <p class="item"><b>Audio is deleted right away.</b> <span>It's transcribed and then thrown away, along with any copy the messenger bridge made.</span></p>
           <p class="item"><b>No transcripts kept.</b> <span>The bot replies and forgets. It only remembers each chat's settings.</span></p>
-          <p class="item"><b>No cloud services.</b> <span>The models run on your own CPU. You can add a cloud API, but you don't have to.</span></p>
-          <p class="item"><b>Only people you allow.</b> <span>Anyone else is told their sender ID and nothing more.</span></p>
+          <p class="item"><b>No cloud services.</b> <span>The models run on the server's own CPU. No audio goes to an AI company.</span></p>
+          <p class="item"><b>No account needed.</b> <span>The bot only sees what the messenger shows it: an ID, never your contacts.</span></p>
         </div>
         <p class="note">The messenger itself still delivers the message, like any other chat.</p>
       </div>

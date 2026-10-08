@@ -1,7 +1,8 @@
 # tldl configuration. Strings may reference environment variables as
 # ${VAR} or ${VAR:-default}.
 
-default_engine: parakeet   # per chat: /engine <name>
+default_engine: parakeet   # what free users get
+vip_engine: canary         # VIPs' default; they can switch with /engine <name>
 # default_language: de     # per chat: /lang <code>; only Canary uses it
 show_details: false        # "[engine · language · duration · time]" footer; per chat: /details on|off
 status_updates: true       # "📥 Received" → "✍️ Transcribing…" → transcript, edited in place
@@ -10,6 +11,13 @@ preload: true              # load the default engine at startup instead of on fi
 idle_unload: 60            # free a model after 1 min without use (reloading takes ~1 s);
                            # per engine: idle_unload: <seconds>, or null to keep it loaded
 state_file: data/state.json
+
+# Who can use the bot. VIPs (per messenger, below) are always unlimited.
+access:
+  public: false            # true: anyone can use it within the limits below
+  daily_limit: 300         # seconds of audio per user per day (5 min)
+  daily_total: 7200        # seconds per day for all non-VIPs together (2 h)
+  timezone: Europe/Berlin  # limits reset at midnight here
 
 # Checks every few minutes that each messenger still works (e.g. WhatsApp
 # logged the bot out, or Signal blocks an outdated bridge) and tells you.
@@ -44,12 +52,14 @@ engines:
     # vad_above: 120       # split audio longer than this (seconds) at pauses
 
   # NVIDIA Canary 1B v2: same languages, bigger, usually more accurate, ~2x
-  # slower. Can NOT detect the language: uses the chat's /lang, else
-  # `language` below. Without a language it translates to English.
+  # slower. It can't detect the language itself, so a small Whisper model does
+  # (~0.3 s, ~300 MB) unless the chat set one with /lang. Other languages get a
+  # "not supported" reply.
   canary:
-    description: NVIDIA Canary 1B v2 (accurate, set /lang for non-German)
+    description: NVIDIA Canary 1B v2 (more accurate, slower)
     model: nemo-canary-1b-v2
-    language: de
+    detect_language: onnx-community/whisper-base
+    language: en           # fallback if detection is off
 
   # Any OpenAI-compatible /v1/audio/transcriptions server (Groq, OpenAI,
   # speaches, a GPU box, ...).
@@ -61,16 +71,16 @@ engines:
   #   concurrency: 4
 
 # ---------------------------------------------------------------------------
-# Messengers. Set `enabled: false` to switch one off. Each needs either
-# `allowed_senders` (unknown senders are told their id, so you can add it)
-# or `allow_all: true`.
+# Messengers. Set `enabled: false` to switch one off. `vips` maps sender ids to
+# names: VIPs have unlimited access and use vip_engine. Everyone gets their id
+# in the welcome message and in /info, so they can send it to you.
 # ---------------------------------------------------------------------------
 messengers:
   telegram:
     type: telegram
     token: ${TELEGRAM_BOT_TOKEN}
-    allowed_senders:          # Telegram user ids (the bot tells unknown senders theirs)
-      # - 123456789   # name
+    vips:                     # Telegram user ids (the bot tells unknown senders theirs)
+      # 123456789: Alice
 
   signal:
     type: signal
@@ -78,8 +88,8 @@ messengers:
     url: http://signal-api:8080
     number: ${SIGNAL_NUMBER}  # the account registered/linked in signal-cli-rest-api
     note_to_self: false       # true: linked to your own account, use "Note to Self"
-    allowed_senders:          # Signal UUIDs (the bot tells unknown senders theirs). Phone numbers only match senders who share their number
-      # - 0f4c1d2e-…   # name
+    vips:                     # Signal UUIDs (the bot tells unknown senders theirs). Phone numbers only match senders who share their number
+      # 0f4c1d2e-…: Alice
 
   whatsapp:
     type: whatsapp-waha
@@ -89,5 +99,5 @@ messengers:
     api_key: ${WAHA_API_KEY}
     webhook_token: ${WEBHOOK_TOKEN}   # WAHA's hook URL must end with ?token=<same value>
     self_chat: false          # true: linked to your own account, use "Message yourself"
-    allowed_senders:          # phone numbers without + (e.g. 4917612345678)
-      # - 4917612345678   # name
+    vips:                     # phone numbers without + (e.g. 4917612345678)
+      # 4917612345678: Alice
