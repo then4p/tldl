@@ -153,3 +153,16 @@ def test_old_allowlist_config_is_explained(tmp_path):
     p.write_text("engines: {a: {}}\nmessengers: {tg: {type: telegram, token: x, allowed_senders: [1]}}\n")
     with pytest.raises(ValueError, match="replaced by 'vips'"):
         load_config(p)
+
+
+async def test_messenger_can_stay_vip_only_in_public_mode(make_bot):
+    bot, m = make_bot(welcomed=False, **public())
+    m.public = False  # e.g. WhatsApp
+    msg, fetched = voice(sender="2")
+    await bot.handle(m, msg)
+    await settle(bot)
+    assert "This bot is private" in m.replies[0] and "Your chat ID: 2" in m.replies[0]
+    assert not fetched and "private" in m.replies[-1]
+    await bot.handle(m, voice(sender="1")[0])  # VIPs still work
+    await settle(bot)
+    assert m.replies[-1].startswith("hello world")

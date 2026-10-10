@@ -35,10 +35,15 @@ services:
     restart: unless-stopped
     environment:
       WAHA_API_KEY: ${WAHA_API_KEY}
+      WAHA_DASHBOARD_USERNAME: ${WAHA_DASHBOARD_USERNAME:-admin}
+      WAHA_DASHBOARD_PASSWORD: ${WAHA_DASHBOARD_PASSWORD}   # the default would be waha/waha
       WHATSAPP_DEFAULT_ENGINE: GOWS
+      WHATSAPP_START_SESSION: default            # start (and resume) the session on every start, e.g. after reboots
+      WHATSAPP_RESTART_ALL_SESSIONS: "True"
       WHATSAPP_HOOK_URL: http://tldl:8000/webhook/whatsapp?token=${WEBHOOK_TOKEN}
       WHATSAPP_HOOK_EVENTS: message,session.status   # session.status: instant health alerts
+      WHATSAPP_FILES_LIFETIME: 180               # downloaded voice messages are deleted after 3 min
     ports:
-      - "127.0.0.1:3000:3000"   # dashboard for scanning the QR code
+      - "127.0.0.1:${WAHA_PORT:-3000}:3000"      # dashboard for scanning the QR code (ssh -L to reach it)
     volumes:
       - ./data/waha:/app/.sessions

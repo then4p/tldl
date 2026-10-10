@@ -75,6 +75,7 @@ class WahaMessenger(Messenger):
         if body.get("event") in ("message", "message.any"):
             msg = self._parse(body.get("payload") or {})
             if msg:
+                await self._resolve_phone(msg)
                 await self.dispatch(msg)
         elif body.get("event") == "session.status":
             self.health_changed()
@@ -92,6 +93,10 @@ class WahaMessenger(Messenger):
 
         chat_id = p.get("to") if p.get("fromMe") else p.get("from")
         sender = p.get("participant") or p.get("author") or p.get("from") or ""
+        # WhatsApp increasingly identifies senders by a LID ("123…@lid") instead of
+        # their phone number; WAHA passes the number along as SenderAlt when known.
+        alt = ((p.get("_data") or {}).get("Info") or {}).get("SenderAlt") or ""
+        phone = _user_part(sender) if sender.endswith("@c.us") else _user_part(alt) if alt else None
 
         audio = None
         media = p.get("media") or {}
@@ -105,12 +110,36 @@ class WahaMessenger(Messenger):
         return IncomingMessage(
             messenger=self.name,
             chat_id=chat_id,
-            sender_id=_user_part(sender),
+            sender_id=phone or _user_part(sender),
             text=None if p.get("hasMedia") else p.get("body"),
             audio=audio,
             from_self=from_self,
-            raw={"id": p.get("id")},
+            raw={"id": p.get("id"), "jid": sender, "sender_ids": {_user_part(sender)} | ({phone} if phone else set())},
         )
+
+    async def _resolve_phone(self, msg: IncomingMessage) -> None:
+        """Look up the phone number behind a LID sender if the message didn't carry it."""
+        jid = msg.raw.get("jid", "")
+        if not jid.endswith("@lid") or msg.sender_id != _user_part(jid):
+            return
+        try:
+            async with self._session.get(f"{self.url}/api/{quote(self.session_name)}/lids/{quote(jid, safe='@')}") as resp:
+                pn = (await resp.json(content_type=None)).get("pn") if resp.status == 200 else None
+        except Exception:
+            log.debug("whatsapp: LID lookup failed", exc_info=True)
+            return
+        if pn:
+            msg.sender_id = _user_part(pn)
+            msg.raw["sender_ids"].add(msg.sender_id)
+
+    def vip_name(self, msg: IncomingMessage) -> str | None:
+        # VIPs may be listed by phone number or by LID.
+        if msg.from_self:
+            return "you"
+        for sender_id in msg.raw.get("sender_ids") or {msg.sender_id}:
+            if sender_id in self.vips:
+                return self.vips[sender_id]
+        return None
 
     def _audio_ref(self, media_url: str, mime: str, filename: str | None) -> AudioRef:
         # WAHA builds media URLs from its own WAHA_BASE_URL, which may not be

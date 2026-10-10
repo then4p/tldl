@@ -113,3 +113,38 @@ async def test_signal_reads_message_id_from_both_response_shapes():
         finally:
             await m.close()
             await server.close()
+
+
+def test_waha_lid_sender_with_phone_in_sender_alt():
+    m = WahaMessenger("wa", noop, vips={4915223: "Levente"})
+    msg = m._parse(_waha(**{"from": "18712345@lid", "body": "/info",
+                            "_data": {"Info": {"Sender": "18712345@lid", "SenderAlt": "4915223@s.whatsapp.net"}}}))
+    assert msg.sender_id == "4915223" and msg.chat_id == "18712345@lid"
+    assert m.vip_name(msg) == "Levente"
+    # without the phone number, a VIP can also be listed by LID
+    m = WahaMessenger("wa", noop, vips={"18712345": "Levente"})
+    msg = m._parse(_waha(**{"from": "18712345@lid", "body": "/info"}))
+    assert msg.sender_id == "18712345" and m.vip_name(msg) == "Levente"
+
+
+async def test_waha_resolves_lid_via_api():
+    from aiohttp import web
+    from aiohttp.test_utils import TestServer
+
+    async def lid(request):
+        assert request.match_info["lid"] == "18712345@lid"
+        return web.json_response({"lid": "18712345@lid", "pn": "4915223@c.us"})
+
+    app = web.Application()
+    app.router.add_get("/api/default/lids/{lid}", lid)
+    server = TestServer(app)
+    await server.start_server()
+    m = WahaMessenger("wa", noop, url=str(server.make_url("")).rstrip("/"), vips={4915223: "Levente"})
+    await m.start()
+    try:
+        msg = m._parse(_waha(**{"from": "18712345@lid", "body": "/info"}))
+        await m._resolve_phone(msg)
+        assert msg.sender_id == "4915223" and m.vip_name(msg) == "Levente"
+    finally:
+        await m.close()
+        await server.close()

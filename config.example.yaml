@@ -96,6 +96,7 @@ messengers:
     enabled: false
     url: http://waha:3000
     session: default
+    public: false             # VIP-only even with access.public: a public bot on WAHA risks a ban
     api_key: ${WAHA_API_KEY}
     webhook_token: ${WEBHOOK_TOKEN}   # WAHA's hook URL must end with ?token=<same value>
     self_chat: false          # true: linked to your own account, use "Message yourself"

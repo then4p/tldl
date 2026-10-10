@@ -183,7 +183,7 @@ footer a { color: inherit; }
         <a class="cta" href="https://signal.me/#eu/hZ036yW39OTiuvuIHX32Kbl3ZzuPgP4cMZSQcefg_mGbc2lAhHtJF6clMuD4nAir">Open in Signal</a>
         <a class="cta" href="https://t.me/too_long_didnt_listen_bot">Open in Telegram</a>
       </nav>
-      <small>Signal: <code>tldl.1337</code> · Telegram: <code>@too_long_didnt_listen_bot</code></small>
+      <small>Signal: <code>tldl.1337</code> · Telegram: <code>@too_long_didnt_listen_bot</code> · WhatsApp: invite-only</small>
     </section>
 
     <!-- Each .panel becomes a tab labeled by data-tab; #id links open it. Without JS they simply stack. -->
@@ -201,9 +201,10 @@ footer a { color: inherit; }
 
       <div class="panel" id="messengers" data-tab="Messengers">
         <h2>Use the messenger you already have.</h2>
-        <div class="grid">
+        <div class="grid" style="--cols: 3">
           <p class="item"><b>Telegram</b> <span>Create a bot with @BotFather and paste the token. No public URL needed.</span></p>
           <p class="item"><b>Signal</b> <span>Register a number for the bot in signal-cli-rest-api. It doesn't need a phone after that.</span></p>
+          <p class="item"><b>WhatsApp</b> <span>Through WAHA, linked to a spare phone that opens WhatsApp at least every 14 days. Invite-only: WhatsApp doesn't allow public bots like this.</span></p>
         </div>
       </div>
 

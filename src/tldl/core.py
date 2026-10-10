@@ -198,7 +198,7 @@ class Bot:
     async def _handle(self, messenger: Messenger, msg: IncomingMessage) -> None:
         try:
             vip = messenger.vip_name(msg)
-            allowed = vip is not None or self.config.access.public
+            allowed = vip is not None or self.is_public(messenger)
             command = msg.text.strip().split()[0].lower().split("@", 1)[0] if msg.text and msg.text.startswith("/") else None
             if self._user(msg) not in self._welcomed:
                 self._welcomed.add(self._user(msg))
@@ -224,10 +224,13 @@ class Bot:
                 except Exception:
                     log.warning("could not discard audio on %s", msg.messenger, exc_info=True)
 
+    def is_public(self, messenger: Messenger) -> bool:
+        return self.config.access.public if messenger.public is None else messenger.public
+
     def welcome(self, messenger: Messenger, msg: IncomingMessage, vip: str | None) -> str:
         if vip is not None:
             access = "⭐ You're on the VIP list: unlimited transcription."
-        elif self.config.access.public:
+        elif self.is_public(messenger):
             access = f"🎁 You get {clock(self.config.access.daily_limit)} minutes of audio per day for free. /info shows what's left."
         else:
             access = "🔐 This bot is private. To get access, send the owner your ID below."

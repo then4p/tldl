@@ -39,11 +39,14 @@ class Messenger(ABC):
         handler: MessageHandler,
         *,
         vips: dict[str | int, str] | None = None,
+        public: bool | None = None,
     ) -> None:
         self.name = name
         self.handler = handler
         #: sender id -> name; VIPs have unlimited access.
         self.vips = {str(k): str(v) for k, v in (vips or {}).items()}
+        #: Overrides access.public for this messenger (e.g. keep WhatsApp VIP-only).
+        self.public = public
         #: Set by the health monitor; see :meth:`health_changed`.
         self.on_health_change: Callable[[], None] | None = None
 
