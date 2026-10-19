@@ -46,3 +46,31 @@ def test_vad_overrides():
     assert not OnnxEngine("c", model="nemo-canary-1b-v2", vad=False).use_vad(5)
     custom = OnnxEngine("p", vad_options={"speech_pad_ms": 100})
     assert custom.vad_options == {"speech_pad_ms": 100, "min_silence_duration_ms": 500}
+
+
+def test_session_options(monkeypatch):
+    import onnx_asr
+
+    seen = []
+
+    class Fake:
+        asr = None
+
+        def with_vad(self, vad, **kw):
+            return self
+
+    def load_model(*a, sess_options=None, **k):
+        seen.append(sess_options)
+        return Fake()
+
+    def load_vad(*a, sess_options=None, **k):
+        seen.append(sess_options)
+
+    monkeypatch.setattr(onnx_asr, "load_model", load_model)
+    monkeypatch.setattr(onnx_asr, "load_vad", load_vad)
+    OnnxEngine("p", threads=5)._load()
+    assert len(seen) == 2 and seen[0] is seen[1]  # the VAD gets the same options
+    opts = seen[0]
+    assert opts.intra_op_num_threads == 5
+    assert opts.get_session_config_entry("session.intra_op.allow_spinning") == "0"
+    assert opts.get_session_config_entry("session.disable_prepacking") == "1"

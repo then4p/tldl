@@ -43,6 +43,7 @@ class OnnxEngine(Engine):
         threads: int = 0,
         memory_arena: bool = False,
         prepack: bool = False,
+        spinning: bool = False,
         language: str | None = None,
         detect_language: str | None = None,
         vad: bool | str = "auto",
@@ -63,6 +64,11 @@ class OnnxEngine(Engine):
         # Prepacked weights speed up some kernels but cost ~400-550 MB extra.
         # Free for Parakeet; Canary is ~10% slower without.
         self.prepack = prepack
+        # ONNX Runtime's threads busy-wait between work items by default. Under a
+        # Docker CPU limit that burns the quota and gets the container throttled:
+        # on the i5-12400 with cpus: 5, Canary loaded in 6.3 s instead of 1.5 s and
+        # transcription ran 3x slower. Off is as fast or faster even without a limit.
+        self.spinning = spinning
         # Parakeet detects the language itself. Canary can't: without a
         # language it *translates* to English, so it uses the chat's /lang,
         # falling back to this engine's `language`.
@@ -91,6 +97,9 @@ class OnnxEngine(Engine):
         sess_options.enable_cpu_mem_arena = self.memory_arena
         if not self.prepack:
             sess_options.add_session_config_entry("session.disable_prepacking", "1")
+        if not self.spinning:
+            sess_options.add_session_config_entry("session.intra_op.allow_spinning", "0")
+            sess_options.add_session_config_entry("session.inter_op.allow_spinning", "0")
         if self.threads:
             sess_options.intra_op_num_threads = self.threads
         self._model = onnx_asr.load_model(
@@ -101,7 +110,7 @@ class OnnxEngine(Engine):
             sess_options=sess_options,
         )
         if self.vad:
-            vad = onnx_asr.load_vad("silero", providers=self.providers)
+            vad = onnx_asr.load_vad("silero", providers=self.providers, sess_options=sess_options)
             self._vad_model = self._model.with_vad(vad, **self.vad_options)
         if self.detect_language:
             self._detector = onnx_asr.load_model(

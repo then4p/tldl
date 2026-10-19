@@ -1,6 +1,6 @@
 import asyncio
 
-from tldl.core import Bot, split_text
+from tldl.core import Bot, paragraphs, split_text
 
 from .conftest import NoEditMessenger, text, voice
 
@@ -104,6 +104,13 @@ def test_split_text():
     assert split_text("aaa bbb ccc", 7) == ["aaa bbb", "ccc"]
     assert split_text("x" * 10, 4) == ["xxxx", "xxxx", "xx"]
     assert split_text("", 5) == []
+    assert split_text("aa bb\n\ncc dd ee", 12) == ["aa bb", "cc dd ee"]  # prefers paragraph breaks
+
+
+def test_paragraphs():
+    assert paragraphs("Short. Stays one paragraph.") == "Short. Stays one paragraph."
+    assert paragraphs("One two. Three? Four! Five.", min_chars=8) == "One two.\n\nThree? Four!\n\nFive."
+    assert paragraphs("No punctuation at all " * 50) == ("No punctuation at all " * 50).strip()
 
 
 async def test_status_message_is_edited_into_transcript(make_bot):

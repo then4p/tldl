@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -109,11 +110,30 @@ def build_engines(config: Config) -> dict[str, Engine]:
     return result
 
 
+def paragraphs(text: str, min_chars: int = 180) -> str:
+    """Break long transcripts into paragraphs at sentence ends.
+
+    A paragraph ends at the first sentence end after ``min_chars`` characters,
+    so short transcripts stay one paragraph.
+    """
+    result, current = [], ""
+    for sentence in re.split(r"(?<=[.!?])\s+", text.strip()):
+        current = f"{current} {sentence}" if current else sentence
+        if len(current) >= min_chars:
+            result.append(current)
+            current = ""
+    if current:
+        result.append(current)
+    return "\n\n".join(result)
+
+
 def split_text(text: str, limit: int) -> list[str]:
-    """Split on whitespace into chunks of at most ``limit`` characters."""
+    """Split into chunks of at most ``limit`` characters, preferably between paragraphs."""
     chunks = []
     while len(text) > limit:
-        cut = text.rfind(" ", 0, limit + 1)
+        cut = text.rfind("\n\n", 0, limit + 1)
+        if cut <= 0:
+            cut = text.rfind(" ", 0, limit + 1)
         if cut <= 0:
             cut = limit
         chunks.append(text[:cut].rstrip())
@@ -297,7 +317,7 @@ class Bot:
         await status.finish(split_text(self.format(transcript, details), messenger.max_message_length))
 
     def format(self, t: Transcript, details: bool = False) -> str:
-        text = t.text or "(no speech detected)"
+        text = paragraphs(t.text) if t.text else "(no speech detected)"
         if not details:
             return text
         info = [t.engine]
