@@ -55,6 +55,7 @@ STAGES = {
     "queued": "⏳ Waiting for a free slot…",
     "transcribing": "✍️ Transcribing…",
 }
+REFINING = "🔍 Double-checking…"
 
 
 class StatusMessage:
@@ -314,7 +315,27 @@ class Bot:
             msg.messenger, transcript.duration or 0, engine_name, transcript.elapsed or 0,
         )
         details = prefs.details if prefs.details is not None else self.config.show_details
-        await status.finish(split_text(self.format(transcript, details), messenger.max_message_length))
+        limit = messenger.max_message_length
+        first = self.format(transcript, details)
+        chunks = split_text(first, limit)
+        # VIPs: send the fast transcript now, then edit in a slower, better one.
+        refine = self.config.vip_refine
+        refining = (
+            vip is not None and refine and refine != engine_name and status.handle is not None
+            and messenger.supports_edit and len(first) + len(REFINING) + 2 <= limit
+        )
+        await status.finish([f"{first}\n\n{REFINING}"] if refining else chunks)
+        if not refining:
+            return
+        try:
+            better = await self.engines[refine].transcribe(audio, language)
+        except Exception:
+            log.exception("second pass with %s failed", refine)
+            better = None
+        text = self.format(better, details) if better and better.text else first
+        if better:
+            log.info("%s: second pass with %s in %.1fs", msg.messenger, refine, better.elapsed or 0)
+        await status.update(text if len(text) <= limit else first)
 
     def format(self, t: Transcript, details: bool = False) -> str:
         text = paragraphs(t.text) if t.text else "(no speech detected)"

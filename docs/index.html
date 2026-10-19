@@ -209,15 +209,15 @@ footer a { color: inherit; }
       </div>
 
       <div class="panel" id="engines" data-tab="Engines">
-        <h2>Two engines, picked for you.</h2>
+        <h2>Fast first, then better.</h2>
         <div class="table-wrap">
           <table>
             <tr><th>Engine</th><th>Languages</th><th>1 min</th><th>5 min</th></tr>
-            <tr><td>NVIDIA Parakeet v3</td><td>25, detected automatically</td><td>3.0 s</td><td>14.8 s</td></tr>
-            <tr><td>NVIDIA Canary 1B v2</td><td>25, detected automatically</td><td>7.8 s</td><td>39.7 s</td></tr>
+            <tr><td>NVIDIA Parakeet v3</td><td>25, detected automatically</td><td>3.5 s</td><td>12.8 s</td></tr>
+            <tr><td>Whisper large-v3-turbo</td><td>99, detected automatically</td><td>13.7 s</td><td>48.8 s</td></tr>
           </table>
         </div>
-        <p class="note">Measured on an Intel i5-12400 without a GPU. Free users get Parakeet; VIPs get Canary, which is more accurate on difficult audio. Any OpenAI-compatible API works too.</p>
+        <p class="note">Measured on an Intel i5-12400 without a GPU. Everyone gets Parakeet's transcript right away. For VIPs, Whisper then double-checks it and the message updates with its version, which is better on colloquial speech. Any OpenAI-compatible API works too.</p>
       </div>
 
       <div class="panel" id="commands" data-tab="Commands">
@@ -226,7 +226,7 @@ footer a { color: inherit; }
           <dt>/info</dt><dd>Your free minutes left today, and your ID</dd>
           <dt>/details on</dt><dd>Show engine and timing under each transcript</dd>
           <dt>/engines</dt><dd>List the engines and show the one this chat uses</dd>
-          <dt>/engine canary</dt><dd>Switch this chat to another engine (VIPs)</dd>
+          <dt>/engine whisper</dt><dd>Switch this chat to another engine (VIPs)</dd>
         </dl>
       </div>
 
@@ -246,7 +246,7 @@ docker compose up -d</pre>
 
   <footer>
     <span><a href="https://github.com/then4p/tldl">github.com/then4p/tldl</a> · <a href="https://github.com/then4p/tldl/blob/main/LICENSE">AGPL-3.0</a></span>
-    <span>Models: NVIDIA <a href="https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3">Parakeet</a> &amp; <a href="https://huggingface.co/nvidia/canary-1b-v2">Canary</a> (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>), ONNX by <a href="https://huggingface.co/istupakov">istupakov</a></span>
+    <span>Models: NVIDIA <a href="https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3">Parakeet</a> (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>), ONNX by <a href="https://huggingface.co/istupakov">istupakov</a>; OpenAI <a href="https://huggingface.co/openai/whisper-large-v3-turbo">Whisper</a> (MIT)</span>
   </footer>
 </div>
 <script src="field.js"></script>

@@ -61,6 +61,7 @@ class Config:
     messengers: dict[str, dict[str, Any]] = field(default_factory=dict)
     default_engine: str | None = None  # everyone's engine; VIPs can switch with /engine
     vip_engine: str | None = None  # VIPs' default engine (else default_engine)
+    vip_refine: str | None = None  # engine for a slower, better second pass for VIPs
     default_language: str | None = None
     show_details: bool = False  # default for new chats; toggled per chat with /details
     status_updates: bool = True  # progress message that turns into the transcript
@@ -89,7 +90,7 @@ class Config:
                 raise ValueError(f"messengers.{name}.vips must be a map of id: name")
         if self.default_engine is None:
             self.default_engine = next(iter(self.engines))
-        for key in ("default_engine", "vip_engine"):
+        for key in ("default_engine", "vip_engine", "vip_refine"):
             if getattr(self, key) is not None and getattr(self, key) not in self.engines:
                 raise ValueError(f"{key} {getattr(self, key)!r} is not defined in engines")
         alert = self.health.alert

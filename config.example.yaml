@@ -2,8 +2,9 @@
 # ${VAR} or ${VAR:-default}.
 
 default_engine: parakeet   # what free users get
-vip_engine: canary         # VIPs' default; they can switch with /engine <name>
-# default_language: de     # per chat: /lang <code>; only Canary uses it
+vip_engine: parakeet       # VIPs' default; they can switch with /engine <name>
+vip_refine: whisper        # VIPs: fast transcript first, then this engine's better one edited in
+# default_language: de     # per chat: /lang <code>; Parakeet ignores it
 show_details: false        # "[engine · language · duration · time]" footer; per chat: /details on|off
 status_updates: true       # "📥 Received" → "✍️ Transcribing…" → transcript, edited in place
 max_duration: 1800         # seconds; longer voice messages are rejected
@@ -48,18 +49,26 @@ engines:
     model: nemo-parakeet-tdt-0.6b-v3
     # quantization: int8   # default
     # threads: 0           # ONNX Runtime threads; 0 = one per physical core
-    # prepack: false       # true: ~10% faster for Canary, +400-550 MB
+    # prepack: false       # true: ~5% faster, +400-550 MB
     # vad_above: 120       # split audio longer than this (seconds) at pauses
 
-  # NVIDIA Canary 1B v2: same languages, bigger, usually more accurate, ~2x
-  # slower. It can't detect the language itself, so a small Whisper model does
-  # (~0.3 s, ~300 MB) unless the chat set one with /lang. Other languages get a
-  # "not supported" reply.
-  canary:
-    description: NVIDIA Canary 1B v2 (more accurate, slower)
-    model: nemo-canary-1b-v2
-    detect_language: onnx-community/whisper-base
-    language: en           # fallback if detection is off
+  # OpenAI Whisper large-v3-turbo on CTranslate2 (faster-whisper): ~6x slower
+  # than Parakeet, but clearly better on colloquial speech, so VIPs get it as a
+  # second pass (vip_refine). ~1 GB RAM. Detects the language itself.
+  whisper:
+    type: whisper
+    description: Whisper large-v3-turbo (best on colloquial speech, slow)
+    model: large-v3-turbo
+    threads: 6             # matches TLDL_CPUS=6
+    # beam_size: 5         # 1 = greedy, a bit faster
+    # language: de         # fallback when the chat hasn't set one with /lang
+
+  # NVIDIA Canary 1B v2: in between Parakeet and Whisper on speed and quality.
+  # canary:
+  #   description: NVIDIA Canary 1B v2
+  #   model: nemo-canary-1b-v2
+  #   detect_language: onnx-community/whisper-base   # Canary can't detect it itself
+  #   threads: 6
 
   # Any OpenAI-compatible /v1/audio/transcriptions server (Groq, OpenAI,
   # speaches, a GPU box, ...).

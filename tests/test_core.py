@@ -252,3 +252,25 @@ async def test_audio_is_discarded_whatever_happens(make_bot):
         await bot.handle(m, msg)
         await settle(bot)
         assert discarded == [True], (sender, fail)
+
+
+async def test_vip_refine_edits_in_a_better_transcript(make_bot):
+    bot, m = make_bot(show_details=False, vip_refine="b")
+    await bot.handle(m, voice(sender="1")[0])
+    await settle(bot)
+    assert ("edit", "hello world\n\n🔍 Double-checking…") in m.history
+    assert m.replies == ["from b"]
+
+
+async def test_vip_refine_keeps_first_pass_on_failure_and_skips_free_users(make_bot):
+    from tldl.config import AccessConfig
+
+    bot, m = make_bot(show_details=False, vip_refine="b", access=AccessConfig(public=True))
+    bot.engines["b"].fail = True
+    await bot.handle(m, voice(sender="1")[0])
+    await settle(bot)
+    bot.engines["b"].fail = False
+    await bot.handle(m, voice(sender="2")[0])
+    await settle(bot)
+    assert m.replies == ["hello world", "hello world"]
+    assert bot.engines["b"].calls == []  # free users get no second pass

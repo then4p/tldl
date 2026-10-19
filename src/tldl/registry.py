@@ -12,6 +12,7 @@ from typing import Any
 ENGINES = {
     "onnx": "tldl.engines.onnx:OnnxEngine",
     "openai": "tldl.engines.openai:OpenAIEngine",
+    "whisper": "tldl.engines.whisper:WhisperEngine",
 }
 DEFAULT_ENGINE_TYPE = "onnx"
 

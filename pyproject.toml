@@ -16,6 +16,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+whisper = ["faster-whisper>=1.1"]  # the `whisper` engine
 
 [project.scripts]
 tldl = "tldl.cli:main"
