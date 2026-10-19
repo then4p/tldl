@@ -1,5 +1,6 @@
 // Waveform bars behind the phone that flatten into lines of text when the
-// transcript arrives. Configured on <canvas id="field">:
+// transcript arrives; a ripple runs down the lines when it's double-checked.
+// Configured on <canvas id="field">:
 //   data-color="--css-var"  color token to draw with (default --accent)
 //   data-alpha="0.22"       opacity of the bars (lines get +0.1)
 //   data-bar="0.45"         bar width as a share of the spacing between bars
@@ -29,6 +30,13 @@
     }
   }
   let t = reduce ? 1 : 0, target = t, w = 0, h = 0, last = 0, raf = 0;
+  let rippleAt = -Infinity; // when the double-check started its ripple
+  const RIPPLE = 1400; // ms for the ripple to run from the top line to the bottom one
+  // 0..1 bump while the ripple passes row r.
+  function ripple(r, now) {
+    const p = (now - rippleAt) / RIPPLE * 1.4 - r / ROWS;
+    return p > 0 && p < 0.4 ? Math.sin((p / 0.4) * Math.PI) : 0;
+  }
   const ease = (x) => x * x * (3 - 2 * x);
 
   function resize() {
@@ -53,9 +61,10 @@
       const bar = { x: pad + i * barGap + (barGap - barW) / 2, y: h / 2 - bh / 2, w: barW, h: bh };
       const wd = words[i];
       const txt = { x: pad + wd.x * (w - pad * 2), y: top + wd.r * rowGap, w: wd.w * (w - pad * 2), h: lineH };
-      const x = bar.x + (txt.x - bar.x) * k, y = bar.y + (txt.y - bar.y) * k;
-      const rw = bar.w + (txt.w - bar.w) * k, rh = bar.h + (txt.h - bar.h) * k;
-      ctx.globalAlpha = alpha + 0.1 * k;
+      const bump = reduce ? 0 : ripple(wd.r, now) * k;
+      const x = bar.x + (txt.x - bar.x) * k, y = bar.y + (txt.y - bar.y) * k - bump * lineH * 0.5;
+      const rw = bar.w + (txt.w - bar.w) * k, rh = bar.h + (txt.h - bar.h) * k + bump * lineH;
+      ctx.globalAlpha = alpha + 0.1 * k + 0.3 * bump;
       ctx.beginPath();
       ctx.roundRect(x, y, rw, rh, Math.min(rw, rh) / 2);
       ctx.fill();
@@ -69,7 +78,10 @@
     raf = requestAnimationFrame(frame);
   }
   document.addEventListener("tldl:stage", (e) => {
+    // The audio is already transcribed: the lines stay, a ripple shows the text refreshing.
+    if (e.detail === "checked") { rippleAt = performance.now(); return; }
     target = e.detail === "done" ? 1 : 0;
+    if (target === 0) rippleAt = -Infinity;
     if (reduce) { t = target; draw(0); }
   });
   new ResizeObserver(resize).observe(cv);

@@ -149,7 +149,7 @@ footer a { color: inherit; }
 
       <div class="stage">
         <canvas id="field" data-color="--leaf" data-alpha="0.28" data-bar="0.62" aria-hidden="true"></canvas>
-        <div class="phone" role="img" aria-label="Animated Telegram chat: a forwarded one-minute voice message, the tldl bot replies with status updates, then the transcript.">
+        <div class="phone" role="img" aria-label="Animated Telegram chat: a forwarded one-minute voice message, the tldl bot replies with a quick transcript within seconds, then double-checks it and corrects two words.">
           <div class="screen">
             <div class="tg-head">
               <span class="avatar" aria-hidden="true">tl</span>
@@ -164,6 +164,7 @@ footer a { color: inherit; }
               <div class="msg in" id="bot" hidden>
                 <div class="quote"><b>Anna</b><span>Voice message</span></div>
                 <span class="bot-text" id="bot-text"></span>
+                <span class="bot-check" id="bot-check" hidden>🔍 Double-checking…</span>
                 <span class="meta"><span id="edited">edited</span> 18:42</span>
               </div>
             </div>

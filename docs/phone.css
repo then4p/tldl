@@ -74,8 +74,12 @@
 .bot-text { white-space: pre-wrap; overflow-wrap: anywhere; }
 .bot-text.swap { animation: tg-swap .35s ease both; }
 @keyframes tg-swap { from { opacity: .25; } }
+.bot-check { display: block; margin-top: 6px; font-size: 13.5px; color: var(--tg-meta); animation: tg-pulse 1.4s ease-in-out infinite; }
+@keyframes tg-pulse { 50% { opacity: .45; } }
+.fix { color: inherit; border-radius: 4px; background: transparent; animation: tg-fix 2.6s ease-out both; }
+@keyframes tg-fix { from, 35% { background: color-mix(in srgb, var(--tg-accent) 32%, transparent); } }
 .tg-input { padding: 10px 14px 24px; background: var(--tg-bar); color: var(--tg-meta); font-size: 15px; }
 [hidden] { display: none !important; }
 @media (prefers-reduced-motion: reduce) {
-  .msg.pop, .bot-text.swap { animation: none; }
+  .msg.pop, .bot-text.swap, .bot-check, .fix { animation: none; }
 }

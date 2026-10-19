@@ -1,6 +1,6 @@
 // Demo page script: theme toggle + animated Telegram chat.
 // The page can react to the animation via the "tldl:stage" event on document
-// (detail: "reset" | "voice" | "status" | "done") and [data-step] elements.
+// (detail: "reset" | "voice" | "status" | "done" | "checked") and [data-step] elements.
 
 // Theme: "auto" follows the OS (live); "light"/"dark" pin it. Remembered per browser.
 (() => {
@@ -38,12 +38,15 @@
   const steps = [...document.querySelectorAll("[data-step]")];
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  const TRANSCRIPT =
-    "Hey, it's me. I'm at the shop and they're out of the oat milk you like, " +
+  // Plain text, or [quick, checked]: what Parakeet hears first, and Whisper's correction.
+  const TRANSCRIPT = [
+    "Hey, it's me. I'm at the shop and they're out of the ", ["goat milk", "oat milk"], " you like, " +
     "there's only the barista one or the unsweetened one. Which one do you want? " +
-    "Oh, and can you call the landlord about the heating? It's still not working " +
-    "in the bedroom. Okay, see you tonight, bye!";
-  const STATUS = ["📥 Received", "⏳ Loading model…", "✍️ Transcribing…"];
+    "Oh, and can you call the landlord about the ", ["eating", "heating"], "? It's still not working " +
+    "in the bedroom. Okay, see you tonight, bye!",
+  ];
+  const STATUS = ["📥 Received", "✍️ Transcribing…"];
+  const check = $("bot-check");
 
   // Waveform: fixed pseudo-random bar heights so it looks like speech.
   const wave = $("wave");
@@ -78,6 +81,18 @@
     botText.classList.add("swap");
     if (edited) edited.hidden = !isEdit;
   }
+  // pass 0: the quick transcript; pass 1: corrected words highlighted.
+  function setTranscript(pass) {
+    botText.replaceChildren(...TRANSCRIPT.map((part) => {
+      if (typeof part === "string") return part;
+      if (!pass) return part[0];
+      const mark = document.createElement("mark");
+      mark.className = "fix";
+      mark.textContent = part[1];
+      return mark;
+    }));
+    if (check) check.hidden = pass === 1;
+  }
   function pop(el) {
     el.hidden = false;
     el.classList.remove("pop");
@@ -86,7 +101,7 @@
   }
   function showFinal() {
     voice.hidden = false; bot.hidden = false;
-    botText.textContent = TRANSCRIPT;
+    setTranscript(1);
     if (edited) edited.hidden = false;
     setStatus("bot", false);
     setStep(3);
@@ -102,6 +117,7 @@
 
     voice.hidden = true; bot.hidden = true;
     if (edited) edited.hidden = true;
+    if (check) check.hidden = true;
     setStatus("bot", false); setStep(0); emit("reset");
 
     if (!await alive(700)) return;
@@ -111,14 +127,16 @@
     setText(STATUS[0], false); pop(bot); setStep(2); emit("status");
     setStatus("typing…", true);
 
-    if (!await alive(1100)) return;
+    if (!await alive(700)) return;
     setText(STATUS[1], true);
 
-    if (!await alive(1000)) return;
-    setText(STATUS[2], true);
+    // The quick transcript arrives within seconds...
+    if (!await alive(1100)) return;
+    setText("", true); setTranscript(0); setStep(3); emit("done");
 
-    if (!await alive(2100)) return;
-    setText(TRANSCRIPT, true); setStep(3); emit("done");
+    // ...and a moment later the double-check fixes what Parakeet misheard.
+    if (!await alive(3400)) return;
+    setTranscript(1); emit("checked");
     setStatus("bot", false);
 
     if (!await alive(7500)) return;
