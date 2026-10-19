@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- The semicolon of tl;dl in leaf green on a pastel green disc, like the page. The disc keeps it readable on dark tab bars. -->
+  <circle cx="32" cy="32" r="32" fill="#cfe0cd"/>
+  <g fill="#2f6a4d" transform="translate(32 34) scale(1.18) translate(-32 -36)">
+    <circle cx="32" cy="20" r="7.5"/>
+    <circle cx="32" cy="38" r="7.5"/>
+    <path d="M39.4 39.4c.5 8.4-4.4 14.9-12.8 18.1l-1.6-2.8c5.3-3 7.6-6.7 7.6-11.6z"/>
+  </g>
+</svg>
