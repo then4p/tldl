@@ -1,60 +1,46 @@
-"""Wires messengers to engines and handles chat commands."""
+"""Wires the messengers to the transcriber and answers chat commands."""
 
 import asyncio
 import json
 import logging
+import math
 import re
-from dataclasses import asdict, dataclass
+import time
 from pathlib import Path
 from typing import Any
 
 from aiohttp import web
 
 from .audio import SAMPLE_RATE, decode
-from .config import Config, split_type
-from .engines.base import Engine, UnsupportedLanguage
+from .config import Config
 from .health import HealthMonitor
-from .limits import Budget, clock
 from .messengers.base import Messenger
-from .models import IncomingMessage, Transcript
-from .registry import ENGINES, MESSENGERS, load_class
+from .messengers.signal import SignalMessenger
+from .messengers.telegram import TelegramMessenger
+from .messengers.whatsapp_waha import WahaMessenger
+from .models import IncomingMessage
+from .transcriber import Transcriber
 
 log = logging.getLogger(__name__)
 
-HELP = """\
-Forward or send me a voice message and I'll reply with the text.
+MESSENGERS = {"telegram": TelegramMessenger, "signal": SignalMessenger, "whatsapp-waha": WahaMessenger}
 
-/info - your free minutes left today, and your ID
-/lang <code|auto> - set the spoken language (e.g. de), or detect it
-/details on|off - show engine and timing under each transcript
-/engines, /engine <name> - list or switch engines (VIPs)
-/help - this message
+HELP = """\
+Forward or send me a voice message and I'll reply with the text. You get a \
+quick transcript within seconds; a slower, more accurate one replaces it \
+shortly after.
 
 tldl is free software (AGPL-3.0). Source: https://github.com/then4p/tldl"""
 
-# For "this sounds like Japanese"; other languages are shown by their code.
-LANGUAGE_NAMES = {
-    "ar": "Arabic", "be": "Belarusian", "bs": "Bosnian", "ca": "Catalan", "eu": "Basque", "fa": "Persian",
-    "gl": "Galician", "he": "Hebrew", "hi": "Hindi", "hy": "Armenian", "id": "Indonesian", "is": "Icelandic",
-    "ja": "Japanese", "ka": "Georgian", "kk": "Kazakh", "ko": "Korean", "mk": "Macedonian", "ms": "Malay",
-    "nn": "Norwegian", "no": "Norwegian", "sq": "Albanian", "sr": "Serbian", "sw": "Swahili", "th": "Thai",
-    "tl": "Tagalog", "tr": "Turkish", "ur": "Urdu", "vi": "Vietnamese", "yue": "Cantonese", "zh": "Chinese",
-}
+WELCOME = """\
+👋 Welcome to tldl: too long; didn't listen.
 
+Forward me a voice message and I'll send you the text a few seconds later.
 
-@dataclass
-class ChatPrefs:
-    engine: str | None = None
-    language: str | None = None
-    details: bool | None = None  # None: use config.show_details
+🔒 Voice messages are transcribed on a private server and never stored."""
 
-
-STAGES = {
-    "received": "📥 Received",
-    "loading": "⏳ Loading model…",
-    "queued": "⏳ Waiting for a free slot…",
-    "transcribing": "✍️ Transcribing…",
-}
+RECEIVED = "📥 Received"
+TRANSCRIBING = "✍️ Transcribing…"
 REFINING = "🔍 Double-checking…"
 
 
@@ -65,16 +51,15 @@ class StatusMessage:
     new message(s). Status problems are logged, never fatal.
     """
 
-    def __init__(self, messenger: Messenger, msg: IncomingMessage, enabled: bool = True) -> None:
+    def __init__(self, messenger: Messenger, msg: IncomingMessage) -> None:
         self.messenger = messenger
         self.msg = msg
-        self.enabled = enabled
         self.handle: Any = None
         self.sent = False
         self.text: str | None = None
 
     async def update(self, text: str) -> None:
-        if not self.enabled or text == self.text:
+        if text == self.text:
             return
         try:
             if not self.sent:
@@ -89,7 +74,10 @@ class StatusMessage:
             log.warning("status update failed on %s", self.messenger.name, exc_info=True)
 
     async def finish(self, chunks: list[str]) -> None:
-        """Replace the status with the first chunk; send the rest as new messages."""
+        """Replace the status with the first chunk; send the rest as new messages.
+
+        Can be called again: it then replaces the first chunk sent last time.
+        """
         if chunks and self.handle is not None and self.messenger.supports_edit:
             try:
                 await self.messenger.edit(self.msg, self.handle, chunks[0])
@@ -97,18 +85,21 @@ class StatusMessage:
             except Exception:
                 # e.g. WhatsApp only allows edits for 15 minutes
                 log.warning("final edit failed on %s, sending a new message", self.messenger.name, exc_info=True)
+                self.handle = None
         for chunk in chunks:
-            await self.messenger.reply(self.msg, chunk)
+            handle = await self.messenger.reply(self.msg, chunk)
+            if self.handle is None:
+                self.handle = handle
 
 
-def build_engines(config: Config) -> dict[str, Engine]:
-    result = {}
-    for name, section in config.engines.items():
-        kind, options = split_type(section)
-        # An engine's own idle_unload (even null = never) wins over the global one.
-        options.setdefault("idle_unload", config.idle_unload)
-        result[name] = load_class(kind, ENGINES)(name, **options)
-    return result
+def clock(seconds: float) -> str:
+    """1:05 for 65 seconds."""
+    s = math.ceil(max(seconds, 0))
+    return f"{s // 60}:{s % 60:02d}"
+
+
+def format_text(text: str) -> str:
+    return paragraphs(text) if text else "(no speech detected)"
 
 
 def paragraphs(text: str, min_chars: int = 180) -> str:
@@ -148,51 +139,29 @@ class Bot:
     def __init__(
         self,
         config: Config,
-        engines: dict[str, Engine] | None = None,
+        transcriber: Transcriber | None = None,
         messengers: dict[str, Messenger] | None = None,
     ) -> None:
         self.config = config
-        self.engines = engines if engines is not None else build_engines(config)
+        self.transcriber = transcriber or Transcriber(threads=config.threads)
         if messengers is None:
             messengers = {}
             for name, section in config.messengers.items():
-                kind, options = split_type(section)
-                messengers[name] = load_class(kind, MESSENGERS)(name, self.handle, **options)
+                options = dict(section)
+                cls = MESSENGERS[options.pop("type")]
+                messengers[name] = cls(name, self.handle, **options)
         self.messengers = messengers
-        self._prefs: dict[str, ChatPrefs] = {}
         self._welcomed: set[str] = set()  # "messenger:sender" that got the welcome message
-        self._usage: dict = {}  # today's free-minute usage, see limits.Budget
         self._tasks: set[asyncio.Task] = set()
         self._load_state()
-        self.budget = Budget(config.access, self._usage)
-
-    # ---- per-chat preferences -------------------------------------------------
-
-    def _key(self, msg: IncomingMessage) -> str:
-        return f"{msg.messenger}:{msg.chat_id}"
-
-    def prefs(self, msg: IncomingMessage) -> ChatPrefs:
-        return self._prefs.setdefault(self._key(msg), ChatPrefs())
 
     def _user(self, msg: IncomingMessage) -> str:
         return f"{msg.messenger}:{msg.sender_id}"
 
-    def engine_name(self, prefs: ChatPrefs, vip: bool = True) -> str:
-        """Free users always get the default engine; VIPs their choice or vip_engine."""
-        if not vip:
-            return self.config.default_engine
-        # Engines removed from the config fall back to the default.
-        if prefs.engine in self.engines:
-            return prefs.engine
-        return self.config.vip_engine or self.config.default_engine
-
     def _load_state(self) -> None:
         path = self.config.state_file
         if path and Path(path).exists():
-            data = json.loads(Path(path).read_text())
-            self._prefs = {k: ChatPrefs(**v) for k, v in data.get("chats", {}).items()}
-            self._welcomed = set(data.get("welcomed", []))
-            self._usage.update(data.get("usage", {}))
+            self._welcomed = set(json.loads(Path(path).read_text()).get("welcomed", []))
 
     def _save_state(self) -> None:
         path = self.config.state_file
@@ -200,12 +169,7 @@ class Bot:
             return
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         tmp = Path(path).with_suffix(".tmp")
-        state = {
-            "chats": {k: asdict(v) for k, v in self._prefs.items()},
-            "welcomed": sorted(self._welcomed),
-            "usage": self._usage,
-        }
-        tmp.write_text(json.dumps(state, indent=2))
+        tmp.write_text(json.dumps({"welcomed": sorted(self._welcomed)}, indent=2))
         tmp.replace(path)
 
     # ---- message handling -----------------------------------------------------
@@ -218,24 +182,19 @@ class Bot:
 
     async def _handle(self, messenger: Messenger, msg: IncomingMessage) -> None:
         try:
-            vip = messenger.vip_name(msg)
-            allowed = vip is not None or self.is_public(messenger)
             command = msg.text.strip().split()[0].lower().split("@", 1)[0] if msg.text and msg.text.startswith("/") else None
             if self._user(msg) not in self._welcomed:
                 self._welcomed.add(self._user(msg))
                 self._save_state()
-                await messenger.reply(msg, self.welcome(messenger, msg, vip))
+                await messenger.reply(msg, WELCOME)
                 if command in ("/start", "/help"):
                     return  # the welcome already answers these
-            if not allowed:
-                log.info("rejected %s sender %s (not a VIP)", msg.messenger, msg.sender_id)
-                if msg.audio or command:
-                    await messenger.reply(msg, f"🔐 This bot is private. Send the owner your {messenger.label} ID to get access: {msg.sender_id}")
-                return
             if msg.audio:
-                await self._transcribe(messenger, msg, vip)
-            elif command:
-                await self._command(messenger, msg, vip)
+                await self._transcribe(messenger, msg)
+            elif command == "/start":
+                await messenger.reply(msg, WELCOME)
+            elif command == "/help":
+                await messenger.reply(msg, HELP)
         except Exception:
             log.exception("failed to handle message on %s", msg.messenger)
         finally:
@@ -245,176 +204,54 @@ class Bot:
                 except Exception:
                     log.warning("could not discard audio on %s", msg.messenger, exc_info=True)
 
-    def is_public(self, messenger: Messenger) -> bool:
-        return self.config.access.public if messenger.public is None else messenger.public
-
-    def welcome(self, messenger: Messenger, msg: IncomingMessage, vip: str | None) -> str:
-        if vip is not None:
-            access = "⭐ You're on the VIP list: unlimited transcription."
-        elif self.is_public(messenger):
-            access = f"🎁 You get {clock(self.config.access.daily_limit)} minutes of audio per day for free. /info shows what's left."
-        else:
-            access = "🔐 This bot is private. To get access, send the owner your ID below."
-        return (
-            "👋 Welcome to tldl: too long; didn't listen.\n\n"
-            "Forward me a voice message and I'll send you the text a few seconds later. "
-            "It works in 25 European languages.\n\n"
-            f"{access}\n"
-            "🔒 Voice messages are transcribed on a private server and never stored.\n\n"
-            f"Your {messenger.label} ID: {msg.sender_id}\n"
-            "Send /help for all commands."
-        )
-
-    async def _transcribe(self, messenger: Messenger, msg: IncomingMessage, vip: str | None) -> None:
-        prefs = self.prefs(msg)
-        engine_name = self.engine_name(prefs, vip is not None)
-        engine = self.engines[engine_name]
-        language = prefs.language or self.config.default_language
+    async def _transcribe(self, messenger: Messenger, msg: IncomingMessage) -> None:
         max_duration = self.config.max_duration
         if max_duration and msg.audio.duration and msg.audio.duration > max_duration:
             await messenger.reply(msg, f"Audio is too long ({clock(msg.audio.duration)}, limit {clock(max_duration)}).")
             return
-        status = StatusMessage(messenger, msg, enabled=self.config.status_updates)
-        await status.update(STAGES["received"])
+        status = StatusMessage(messenger, msg)
+        await status.update(RECEIVED)
         try:
             await messenger.notify_working(msg)
         except Exception:
             log.debug("notify_working failed", exc_info=True)
-
-        async def on_stage(stage: str) -> None:
-            await status.update(STAGES.get(stage, stage))
-
-        user, booked = self._user(msg), 0.0
         try:
-            audio = await msg.audio.fetch()
-            if vip is None:
-                # Not every messenger reports the length, so measure it.
-                seconds = msg.audio.duration or len(await decode(audio)) / SAMPLE_RATE
-                refusal = self.budget.reserve(user, seconds)
-                self._save_state()
-                if refusal:
-                    await status.finish([refusal])
-                    return
-                booked = seconds
-            transcript = await engine.transcribe(audio, language, on_stage=on_stage)
-        except UnsupportedLanguage as exc:
-            self.budget.refund(user, booked)
-            name = LANGUAGE_NAMES.get(exc.language, exc.language)
-            await status.finish([f"🌍 This sounds like {name}, which tldl can't transcribe yet. It supports 25 European languages."])
-            return
+            samples = await decode(await msg.audio.fetch())
+            await status.update(TRANSCRIBING)
+            start = time.perf_counter()
+            fast = await self.transcriber.fast(samples)
         except Exception as exc:
-            self.budget.refund(user, booked)
-            log.exception("transcription with %s failed", engine_name)
-            await status.finish([f"❌ Transcription failed ({engine_name}): {exc}"])
+            log.exception("transcription failed")
+            await status.finish([f"❌ Transcription failed: {exc}"])
             return
-        finally:
-            if booked:
-                self._save_state()
-        log.info(
-            "%s: transcribed %.1fs audio with %s in %.1fs",
-            msg.messenger, transcript.duration or 0, engine_name, transcript.elapsed or 0,
-        )
-        details = prefs.details if prefs.details is not None else self.config.show_details
+        seconds = len(samples) / SAMPLE_RATE
+        log.info("%s: %.1fs audio, fast pass in %.1fs", msg.messenger, seconds, time.perf_counter() - start)
+
+        # Send the fast transcript now, then edit in Whisper's better one. Only
+        # when it fits one message: a split transcript can't be swapped as a whole.
         limit = messenger.max_message_length
-        first = self.format(transcript, details)
-        chunks = split_text(first, limit)
-        # VIPs: send the fast transcript now, then edit in a slower, better one.
-        refine = self.config.vip_refine
-        refining = (
-            vip is not None and refine and refine != engine_name and status.handle is not None
-            and messenger.supports_edit and len(first) + len(REFINING) + 2 <= limit
-        )
-        await status.finish([f"{first}\n\n{REFINING}"] if refining else chunks)
+        first = format_text(fast)
+        refining = status.handle is not None and messenger.supports_edit and len(first) + len(REFINING) + 2 <= limit
+        await status.finish([f"{first}\n\n{REFINING}"] if refining else split_text(first, limit))
         if not refining:
             return
+        start = time.perf_counter()
         try:
-            better = await self.engines[refine].transcribe(audio, language)
+            better = await self.transcriber.better(samples)
+            log.info("%s: second pass in %.1fs", msg.messenger, time.perf_counter() - start)
         except Exception:
-            log.exception("second pass with %s failed", refine)
-            better = None
-        text = self.format(better, details) if better and better.text else first
-        if better:
-            log.info("%s: second pass with %s in %.1fs", msg.messenger, refine, better.elapsed or 0)
-        await status.update(text if len(text) <= limit else first)
-
-    def format(self, t: Transcript, details: bool = False) -> str:
-        text = paragraphs(t.text) if t.text else "(no speech detected)"
-        if not details:
-            return text
-        info = [t.engine]
-        if t.language:
-            info.append(t.language)
-        if t.duration:
-            info.append(f"{t.duration:.0f}s audio")
-        if t.elapsed is not None:
-            info.append(f"took {t.elapsed:.1f}s")
-        return f"{text}\n\n[{' · '.join(info)}]"
-
-    async def _command(self, messenger: Messenger, msg: IncomingMessage, vip: str | None) -> None:
-        cmd, _, arg = msg.text.strip().partition(" ")
-        cmd = cmd.lower().split("@", 1)[0]  # telegram adds @botname in groups
-        arg = arg.strip()
-        prefs = self.prefs(msg)
-        if cmd == "/start":
-            await messenger.reply(msg, self.welcome(messenger, msg, vip))
-        elif cmd == "/help":
-            await messenger.reply(msg, HELP)
-        elif cmd == "/info":
-            await messenger.reply(msg, self.info(messenger, msg, vip))
-        elif cmd == "/engines":
-            current = self.engine_name(prefs, vip is not None)
-            lines = []
-            for name, engine in self.engines.items():
-                marker = "▶ " if name == current else "• "
-                lines.append(marker + name + (f" - {engine.description}" if engine.description else ""))
-            await messenger.reply(msg, "\n".join(lines))
-        elif cmd == "/engine":
-            if vip is None:
-                await messenger.reply(msg, f"Switching engines is for VIPs. You're using {self.config.default_engine}.")
-                return
-            if arg not in self.engines:
-                await messenger.reply(msg, f"Unknown engine {arg!r}. Available: {', '.join(self.engines)}")
-                return
-            prefs.engine = arg
-            self._save_state()
-            await messenger.reply(msg, f"Using {arg} in this chat.")
-        elif cmd == "/lang":
-            prefs.language = None if arg in ("", "auto") else arg.lower()
-            self._save_state()
-            await messenger.reply(msg, f"Language: {prefs.language or 'auto-detect'}")
-        elif cmd == "/details":
-            if arg not in ("on", "off"):
-                await messenger.reply(msg, "Usage: /details on|off")
-                return
-            prefs.details = arg == "on"
-            self._save_state()
-            await messenger.reply(msg, f"Details {arg}.")
-
-    def info(self, messenger: Messenger, msg: IncomingMessage, vip: str | None) -> str:
-        prefs = self.prefs(msg)
-        engine = self.engine_name(prefs, vip is not None)
-        language = prefs.language or "detected automatically"
-        if vip is not None:
-            lines = [f"⭐ VIP: {vip}", "Unlimited transcription."]
-        else:
-            limit, left = self.config.access.daily_limit, self.budget.user_left(self._user(msg))
-            lines = [f"🎁 Free minutes today: {clock(left)} of {clock(limit)} left.", f"They reset at {self.budget.reset_label}."]
-            pool = self.budget.pool_left()
-            if pool < left:
-                lines.append(f"Only {clock(pool)} of the shared free minutes are left today, for everyone.")
-        lines += [f"Engine: {engine} · Language: {language}", f"Your {messenger.label} ID: {msg.sender_id}"]
-        return "\n".join(lines)
+            log.exception("second pass failed")
+            better = ""
+        text = format_text(better) if better else first
+        await status.finish([text if len(text) <= limit else first])
 
     # ---- lifecycle ------------------------------------------------------------
 
     async def run(self) -> None:
         if not self.messengers:
             raise RuntimeError("no messengers configured")
-        if self.config.preload:
-            log.info("preloading engine %s", self.config.default_engine)
-            engine = self.engines[self.config.default_engine]
-            await engine.ensure_loaded()
-            engine.schedule_unload()
+        log.info("loading Parakeet")
+        await self.transcriber.load()
 
         for m in self.messengers.values():
             try:
@@ -442,5 +279,3 @@ class Bot:
                 task.cancel()
             for m in self.messengers.values():
                 await m.close()
-            for engine in self.engines.values():
-                await engine.close()

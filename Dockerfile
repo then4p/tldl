@@ -18,7 +18,7 @@ RUN uv venv --python ${PYTHON} /opt/venv
 WORKDIR /app
 # Dependencies first, so code changes don't reinstall them.
 COPY pyproject.toml ./
-RUN uv pip install --no-cache -r pyproject.toml --extra whisper
+RUN uv pip install --no-cache -r pyproject.toml
 COPY README.md ./
 COPY src ./src
 RUN uv pip install --no-cache --no-deps .

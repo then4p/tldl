@@ -26,7 +26,6 @@ log = logging.getLogger(__name__)
 class SignalMessenger(Messenger):
     max_message_length = 6000
     supports_edit = True
-    label = "Signal"
 
     def __init__(
         self,
@@ -39,8 +38,6 @@ class SignalMessenger(Messenger):
         **kwargs: Any,
     ) -> None:
         super().__init__(name, handler, **kwargs)
-        # Unquoted "+49..." in YAML is read as a number and loses its "+".
-        self.vips = {f"+{k}" if k.isdigit() else k: v for k, v in self.vips.items()}
         self.url = url.rstrip("/")
         self.number = number
         self.note_to_self = note_to_self
@@ -119,7 +116,6 @@ class SignalMessenger(Messenger):
             raw={
                 "timestamp": data.get("timestamp") or envelope.get("timestamp"),
                 "author": author,
-                "sender_ids": {envelope.get("sourceNumber"), envelope.get("sourceUuid")} - {None},
             },
         )
 
@@ -142,15 +138,6 @@ class SignalMessenger(Messenger):
         task = asyncio.create_task(self._delete_attachment(att_id))
         self._pending.add(task)
         task.add_done_callback(self._pending.discard)
-
-    def vip_name(self, msg: IncomingMessage) -> str | None:
-        # VIPs may be listed by UUID or by phone number (only visible if the sender shares it).
-        if msg.from_self:
-            return "you"
-        for sender_id in msg.raw.get("sender_ids") or {msg.sender_id}:
-            if sender_id in self.vips:
-                return self.vips[sender_id]
-        return None
 
     async def reply(self, msg: IncomingMessage, text: str) -> int | None:
         return await self._send(msg, text)

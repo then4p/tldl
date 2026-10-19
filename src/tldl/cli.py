@@ -3,38 +3,32 @@
 import argparse
 import asyncio
 import logging
-import mimetypes
 import os
 import sys
+import time
 from pathlib import Path
 
+from .audio import SAMPLE_RATE, decode
 from .config import load_config
-from .core import Bot, build_engines
+from .core import Bot
 from .models import Audio
+from .transcriber import Transcriber
 
 
 async def _transcribe_files(args: argparse.Namespace) -> int:
+    """Both passes on local files, with timings."""
     config = load_config(args.config)
-    engines = build_engines(config)
-    names = args.engine or [config.default_engine]
-    unknown = [n for n in names if n not in engines]
-    if unknown:
-        print(f"unknown engine(s): {', '.join(unknown)}; available: {', '.join(engines)}", file=sys.stderr)
-        return 2
-    try:
-        for name in names:
-            engine = engines[name]
-            await engine.ensure_loaded()  # keep model load time out of the timings
-            for path in args.files:
-                mime = mimetypes.guess_type(path)[0] or "application/octet-stream"
-                audio = Audio(data=Path(path).read_bytes(), mime_type=mime, filename=Path(path).name)
-                t = await engine.transcribe(audio, args.language)
-                rtf = f", RTF {t.elapsed / t.duration:.2f}" if t.duration else ""
-                print(f"== {name} | {path} | {t.elapsed:.2f}s{rtf} | lang={t.language}")
-                print(t.text, end="\n\n", flush=True)
-    finally:
-        for engine in engines.values():
-            await engine.close()
+    transcriber = Transcriber(threads=config.threads)
+    await transcriber.load()  # keep model load time out of the timings
+    for path in args.files:
+        samples = await decode(Audio(data=Path(path).read_bytes(), filename=Path(path).name))
+        seconds = len(samples) / SAMPLE_RATE
+        for name, run in (("parakeet", transcriber.fast), ("whisper", transcriber.better)):
+            start = time.perf_counter()
+            text = await run(samples)
+            elapsed = time.perf_counter() - start
+            print(f"== {name} | {path} | {seconds:.0f}s audio in {elapsed:.1f}s")
+            print(text, end="\n\n", flush=True)
     return 0
 
 
@@ -44,11 +38,8 @@ def main() -> None:
     parser.add_argument("-v", "--verbose", action="store_true")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("run", help="run the bot")
-    tr = sub.add_parser("transcribe", help="transcribe local files, e.g. to compare engines")
+    tr = sub.add_parser("transcribe", help="transcribe local files with both passes")
     tr.add_argument("files", nargs="+")
-    tr.add_argument("-e", "--engine", action="append", help="engine name from config (repeatable)")
-    tr.add_argument("-l", "--language")
-    sub.add_parser("engines", help="list configured engines")
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -64,11 +55,6 @@ def main() -> None:
             pass
     elif args.command == "transcribe":
         sys.exit(asyncio.run(_transcribe_files(args)))
-    elif args.command == "engines":
-        config = load_config(args.config)
-        for name, section in config.engines.items():
-            marker = "*" if name == config.default_engine else " "
-            print(f"{marker} {name}: {section['type']}")
 
 
 if __name__ == "__main__":

@@ -19,7 +19,6 @@ log = logging.getLogger(__name__)
 class TelegramMessenger(Messenger):
     max_message_length = 4096
     supports_edit = True
-    label = "Telegram"
 
     def __init__(
         self,

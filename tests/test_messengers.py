@@ -31,12 +31,11 @@ def _signal_env(**kw):
 
 
 def test_signal_direct_voice():
-    m = SignalMessenger("sig", noop, number="+49bot", vips={"uuid-1": "Ann"})
+    m = SignalMessenger("sig", noop, number="+49bot")
     msg = m._parse(_signal_env(dataMessage={
         "timestamp": 100, "attachments": [{"id": "att1", "contentType": "audio/aac"}],
     }))
     assert msg.chat_id == "+491" and msg.audio and not msg.from_self
-    assert m.vip_name(msg) == "Ann"  # matched by uuid
 
 
 def test_signal_group():
@@ -84,16 +83,6 @@ def test_waha_group_sender():
     assert msg.chat_id == "123@g.us" and msg.sender_id == "4955"
 
 
-def test_signal_vips_numbers_with_or_without_plus():
-    m = SignalMessenger("sig", noop, number="+49bot", vips={4915111: "A", "+4915222": "B", "uuid-3": "C"})
-    for ids in ({"+4915111", "uuid-x"}, {"+4915222"}, {"uuid-3"}):
-        msg = m._parse(_signal_env(dataMessage={"timestamp": 1, "message": "/help"}))
-        msg.raw["sender_ids"] = ids
-        assert m.vip_name(msg), ids
-    msg.raw["sender_ids"] = {"uuid-unknown"}
-    assert m.vip_name(msg) is None
-
-
 async def test_signal_reads_message_id_from_both_response_shapes():
     from aiohttp import web
     from aiohttp.test_utils import TestServer
@@ -113,38 +102,3 @@ async def test_signal_reads_message_id_from_both_response_shapes():
         finally:
             await m.close()
             await server.close()
-
-
-def test_waha_lid_sender_with_phone_in_sender_alt():
-    m = WahaMessenger("wa", noop, vips={4915223: "Levente"})
-    msg = m._parse(_waha(**{"from": "18712345@lid", "body": "/info",
-                            "_data": {"Info": {"Sender": "18712345@lid", "SenderAlt": "4915223@s.whatsapp.net"}}}))
-    assert msg.sender_id == "4915223" and msg.chat_id == "18712345@lid"
-    assert m.vip_name(msg) == "Levente"
-    # without the phone number, a VIP can also be listed by LID
-    m = WahaMessenger("wa", noop, vips={"18712345": "Levente"})
-    msg = m._parse(_waha(**{"from": "18712345@lid", "body": "/info"}))
-    assert msg.sender_id == "18712345" and m.vip_name(msg) == "Levente"
-
-
-async def test_waha_resolves_lid_via_api():
-    from aiohttp import web
-    from aiohttp.test_utils import TestServer
-
-    async def lid(request):
-        assert request.match_info["lid"] == "18712345@lid"
-        return web.json_response({"lid": "18712345@lid", "pn": "4915223@c.us"})
-
-    app = web.Application()
-    app.router.add_get("/api/default/lids/{lid}", lid)
-    server = TestServer(app)
-    await server.start_server()
-    m = WahaMessenger("wa", noop, url=str(server.make_url("")).rstrip("/"), vips={4915223: "Levente"})
-    await m.start()
-    try:
-        msg = m._parse(_waha(**{"from": "18712345@lid", "body": "/info"}))
-        await m._resolve_phone(msg)
-        assert msg.sender_id == "4915223" and m.vip_name(msg) == "Levente"
-    finally:
-        await m.close()
-        await server.close()

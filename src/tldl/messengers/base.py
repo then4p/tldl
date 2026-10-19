@@ -16,7 +16,7 @@ class Messenger(ABC):
 
     A messenger turns platform events into :class:`IncomingMessage` objects and
     passes them to the handler given in ``__init__``; it knows how to reply.
-    It does no access control or transcription itself - the core does that.
+    It does no transcription itself - the core does that.
 
     Two styles are supported:
 
@@ -30,31 +30,12 @@ class Messenger(ABC):
     #: Whether :meth:`edit` works. If so, the bot shows one status message
     #: ("received", "transcribing", ...) and replaces it with the transcript.
     supports_edit = False
-    #: Shown to users, e.g. "Your Telegram ID: ...".
-    label = "chat"
 
-    def __init__(
-        self,
-        name: str,
-        handler: MessageHandler,
-        *,
-        vips: dict[str | int, str] | None = None,
-        public: bool | None = None,
-    ) -> None:
+    def __init__(self, name: str, handler: MessageHandler) -> None:
         self.name = name
         self.handler = handler
-        #: sender id -> name; VIPs have unlimited access.
-        self.vips = {str(k): str(v) for k, v in (vips or {}).items()}
-        #: Overrides access.public for this messenger (e.g. keep WhatsApp VIP-only).
-        self.public = public
         #: Set by the health monitor; see :meth:`health_changed`.
         self.on_health_change: Callable[[], None] | None = None
-
-    def vip_name(self, msg: IncomingMessage) -> str | None:
-        """The sender's name if they're a VIP, else None."""
-        if msg.from_self:
-            return "you"
-        return self.vips.get(msg.sender_id)
 
     async def start(self) -> None:
         """Open clients, verify credentials. Called before :meth:`run`."""

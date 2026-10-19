@@ -1,4 +1,4 @@
-"""Data types shared between messengers, engines and the core."""
+"""Data types shared between the messengers and the core."""
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -63,15 +63,6 @@ class IncomingMessage:
     from_self: bool = False
     # Messenger-specific data needed to reply (message ids, timestamps, ...).
     raw: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
-class Transcript:
-    text: str
-    engine: str = ""
-    language: str | None = None
-    duration: float | None = None  # audio length in seconds
-    elapsed: float | None = None  # wall time spent transcribing
 
 
 @dataclass

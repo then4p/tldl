@@ -5,12 +5,12 @@
 ## Setup
 
 ```sh
-cp config.example.yaml config.yaml   # engines, messengers, allowed senders (all options documented there)
+cp config.example.yaml config.yaml   # messengers and health alerts (all options documented there)
 cp .env.example .env                 # tokens
 docker compose up -d                 # add --profile signal / --profile whatsapp for those bridges
 ```
 
-Everyone gets a welcome message with their ID on their first message. Add IDs to a messenger's `vips` (`id: name`) for unlimited use with `vip_engine`. With `access.public: true` everyone else can use the bot too, within `daily_limit` per person and `daily_total` for all of them (default 5 min and 2 h a day); `/info` shows what's left. Set `health.alert` to get a message when a messenger stops working; status is also at `:8000/healthz` and `:8000/metrics`.
+Anyone who can message the bot can use it. Set `health.alert` to get a message when a messenger stops working; status is also at `:8000/healthz` and `:8000/metrics`.
 
 - **Telegram:** create a bot with @BotFather, put the token in `.env`.
 - **Signal:** register the bot's own number in signal-cli-rest-api (a registered number doesn't depend on a phone). Keep the image updated: Signal blocks clients older than about 90 days.
@@ -18,16 +18,17 @@ Everyone gets a welcome message with their ID on their first message. Add IDs to
 
 ## Usage
 
-Forward a voice message to the bot. Commands: `/info`, `/lang <code|auto>`, `/details on|off`, `/help`, and for VIPs `/engines` and `/engine <name>`.
+Forward a voice message to the bot. Every message gets two passes:
 
-Engines: `onnx` runs local models on the CPU, by default **Parakeet v3** (fast, 25 European languages, detects the language). `whisper` runs **Whisper large-v3-turbo** via faster-whisper: slower, but better on colloquial speech. With `vip_refine: whisper`, VIPs get Parakeet's transcript right away and Whisper's version edited in when it's ready. `openai` uses any OpenAI-compatible transcription API. Compare them with `docker compose exec tldl tldl transcribe audio.ogg -e parakeet -e whisper`.
+1. **NVIDIA Parakeet v3** sends a quick transcript within seconds (25 European languages).
+2. **Whisper large-v3-turbo** (faster-whisper) then replaces it with a more accurate one, especially on colloquial speech. It's loaded for each message and freed afterwards, so it only takes RAM (about 2 GB) while it works.
 
-| Engine | 1 min message | 5 min message |
+| Pass | 1 min message | 5 min message |
 |---|---|---|
 | Parakeet v3 | 3.5 s | 12.8 s |
 | Whisper large-v3-turbo | 13.7 s | 48.8 s |
 
-Measured on an Intel i5-12400 (6 cores, no GPU) with int8 models and German audio.
+Measured on an Intel i5-12400 (6 cores, no GPU) with int8 models and German audio. Run both on your own files with `docker compose exec tldl tldl transcribe audio.ogg`.
 
 ## Development
 
@@ -35,11 +36,9 @@ Measured on an Intel i5-12400 (6 cores, no GPU) with int8 models and German audi
 uv venv && uv pip install -e '.[dev]' && .venv/bin/pytest
 ```
 
-Plugins: set `type: package.module:Class` and subclass `tldl.engines.Engine` or `tldl.messengers.base.Messenger`.
-
 ## Credits
 
-Models are downloaded at runtime, not shipped. [Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) and [Canary 1B v2](https://huggingface.co/nvidia/canary-1b-v2) by NVIDIA, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); used as int8 ONNX conversions by [istupakov](https://huggingface.co/istupakov) (CC BY 4.0). [Whisper large-v3-turbo](https://huggingface.co/openai/whisper-large-v3-turbo) by OpenAI (MIT), as a CTranslate2 conversion by [Mobius Labs](https://huggingface.co/mobiuslabsgmbh) (MIT), run with [faster-whisper](https://github.com/SYSTRAN/faster-whisper) and [CTranslate2](https://github.com/OpenNMT/CTranslate2) (MIT). [Silero VAD](https://github.com/snakers4/silero-vad), [onnx-asr](https://github.com/istupakov/onnx-asr) and [ONNX Runtime](https://github.com/microsoft/onnxruntime): MIT. The Docker image runs Debian's [FFmpeg](https://ffmpeg.org) (GPL) as a separate program. Bridges run in their own containers: [signal-cli-rest-api](https://github.com/bbernhard/signal-cli-rest-api) (MIT), [signal-cli](https://github.com/AsamK/signal-cli) (GPL-3.0), [WAHA](https://github.com/devlikeapro/waha) (Apache-2.0).
+Models are downloaded at runtime, not shipped. [Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) by NVIDIA, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); used as an int8 ONNX conversion by [istupakov](https://huggingface.co/istupakov) (CC BY 4.0). [Whisper large-v3-turbo](https://huggingface.co/openai/whisper-large-v3-turbo) by OpenAI (MIT), as a CTranslate2 conversion by [Mobius Labs](https://huggingface.co/mobiuslabsgmbh) (MIT), run with [faster-whisper](https://github.com/SYSTRAN/faster-whisper) and [CTranslate2](https://github.com/OpenNMT/CTranslate2) (MIT). [Silero VAD](https://github.com/snakers4/silero-vad), [onnx-asr](https://github.com/istupakov/onnx-asr) and [ONNX Runtime](https://github.com/microsoft/onnxruntime): MIT. The Docker image runs Debian's [FFmpeg](https://ffmpeg.org) (GPL) as a separate program. Bridges run in their own containers: [signal-cli-rest-api](https://github.com/bbernhard/signal-cli-rest-api) (MIT), [signal-cli](https://github.com/AsamK/signal-cli) (GPL-3.0), [WAHA](https://github.com/devlikeapro/waha) (Apache-2.0).
 
 ## License
 

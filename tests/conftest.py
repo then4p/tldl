@@ -3,20 +3,27 @@ import pytest
 from tldl.config import Config
 from tldl.core import Bot
 from tldl.messengers.base import Messenger
-from tldl.models import Audio, AudioRef, IncomingMessage, Transcript
-from tldl.engines.base import Engine
+from tldl.models import Audio, AudioRef, IncomingMessage
 
 
-class FakeEngine(Engine):
-    def __init__(self, name, *, text="hello world", fail=False, **kw):
-        super().__init__(name, **kw)
-        self.text, self.fail, self.calls = text, fail, []
+class FakeTranscriber:
+    def __init__(self, fast="hello world", better="hello world, better"):
+        self.fast_text, self.better_text, self.fail, self.better_fail = fast, better, False, False
+        self.better_calls = 0
 
-    async def _transcribe(self, audio, language):
+    async def load(self):
+        pass
+
+    async def fast(self, samples):
         if self.fail:
             raise RuntimeError("boom")
-        self.calls.append((audio, language))
-        return Transcript(text=f" {self.text} ", language=language or "en", duration=3.0)
+        return self.fast_text
+
+    async def better(self, samples):
+        self.better_calls += 1
+        if self.better_fail:
+            raise RuntimeError("whisper boom")
+        return self.better_text
 
 
 class FakeMessenger(Messenger):
@@ -65,17 +72,23 @@ def text(t, sender="1", chat="c1"):
 @pytest.fixture
 def make_bot(tmp_path):
     def make(messenger_cls=FakeMessenger, welcomed=True, **cfg):
-        engines = {"a": FakeEngine("a"), "b": FakeEngine("b", text="from b")}
-        config = Config(
-            engines={"a": {"type": "x"}, "b": {"type": "x"}},
-            state_file=str(tmp_path / "state.json"),
-            **cfg,
-        )
-        bot = Bot(config, engines=engines, messengers={})
-        messenger = messenger_cls("fake", bot.handle, vips={"1": "Tester"})
+        config = Config(state_file=str(tmp_path / "state.json"), **cfg)
+        bot = Bot(config, transcriber=FakeTranscriber(), messengers={})
+        messenger = messenger_cls("fake", bot.handle)
         bot.messengers = {"fake": messenger}
         if welcomed:  # most tests aren't about the first-contact welcome
             bot._welcomed |= {"fake:1", "fake:999", "fake:me", "fake:2", "fake:3"}
         return bot, messenger
 
     return make
+
+
+@pytest.fixture(autouse=True)
+def fake_decode(monkeypatch):
+    """No ffmpeg in tests: every clip decodes to 3 s of silence."""
+    import numpy as np
+
+    async def decode(audio):
+        return np.zeros(3 * 16000, dtype=np.float32)
+
+    monkeypatch.setattr("tldl.core.decode", decode)

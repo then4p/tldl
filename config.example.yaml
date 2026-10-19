@@ -1,24 +1,13 @@
 # tldl configuration. Strings may reference environment variables as
 # ${VAR} or ${VAR:-default}.
+#
+# Every voice message gets two passes: NVIDIA Parakeet sends a quick transcript
+# within seconds, then Whisper large-v3-turbo replaces it with a more accurate
+# one. Models download from Hugging Face on first use.
 
-default_engine: parakeet   # what free users get
-vip_engine: parakeet       # VIPs' default; they can switch with /engine <name>
-vip_refine: whisper        # VIPs: fast transcript first, then this engine's better one edited in
-# default_language: de     # per chat: /lang <code>; Parakeet ignores it
-show_details: false        # "[engine · language · duration · time]" footer; per chat: /details on|off
-status_updates: true       # "📥 Received" → "✍️ Transcribing…" → transcript, edited in place
+threads: 6                 # CPU threads per model (matches TLDL_CPUS); 0 = one per physical core
 max_duration: 1800         # seconds; longer voice messages are rejected
-preload: true              # load the default engine at startup instead of on first message
-idle_unload: 60            # free a model after 1 min without use (reloading takes ~1 s);
-                           # per engine: idle_unload: <seconds>, or null to keep it loaded
 state_file: data/state.json
-
-# Who can use the bot. VIPs (per messenger, below) are always unlimited.
-access:
-  public: false            # true: anyone can use it within the limits below
-  daily_limit: 300         # seconds of audio per user per day (5 min)
-  daily_total: 7200        # seconds per day for all non-VIPs together (2 h)
-  timezone: Europe/Berlin  # limits reset at midnight here
 
 # Checks every few minutes that each messenger still works (e.g. WhatsApp
 # logged the bot out, or Signal blocks an outdated bridge) and tells you.
@@ -36,60 +25,13 @@ http:
   port: 8000
 
 # ---------------------------------------------------------------------------
-# Engines. `type` defaults to `onnx` (local models on ONNX Runtime). Every
-# engine accepts `description`, `concurrency` (parallel jobs, default 1) and
-# `idle_unload` (overrides the global one above).
-# Models download from Hugging Face on first use.
-# ---------------------------------------------------------------------------
-engines:
-  # NVIDIA Parakeet TDT 0.6B v3: 25 European languages, detected automatically
-  # (/lang is ignored), punctuation included. Very fast on CPU.
-  parakeet:
-    description: NVIDIA Parakeet v3 (fast, European languages)
-    model: nemo-parakeet-tdt-0.6b-v3
-    # quantization: int8   # default
-    # threads: 0           # ONNX Runtime threads; 0 = one per physical core
-    # prepack: false       # true: ~5% faster, +400-550 MB
-    # vad_above: 120       # split audio longer than this (seconds) at pauses
-
-  # OpenAI Whisper large-v3-turbo on CTranslate2 (faster-whisper): ~6x slower
-  # than Parakeet, but clearly better on colloquial speech, so VIPs get it as a
-  # second pass (vip_refine). ~1 GB RAM. Detects the language itself.
-  whisper:
-    type: whisper
-    description: Whisper large-v3-turbo (best on colloquial speech, slow)
-    model: large-v3-turbo
-    threads: 6             # matches TLDL_CPUS=6
-    # beam_size: 5         # 1 = greedy, a bit faster
-    # language: de         # fallback when the chat hasn't set one with /lang
-
-  # NVIDIA Canary 1B v2: in between Parakeet and Whisper on speed and quality.
-  # canary:
-  #   description: NVIDIA Canary 1B v2
-  #   model: nemo-canary-1b-v2
-  #   detect_language: onnx-community/whisper-base   # Canary can't detect it itself
-  #   threads: 6
-
-  # Any OpenAI-compatible /v1/audio/transcriptions server (Groq, OpenAI,
-  # speaches, a GPU box, ...).
-  # groq:
-  #   type: openai
-  #   base_url: https://api.groq.com/openai/v1
-  #   model: whisper-large-v3-turbo
-  #   api_key_env: GROQ_API_KEY
-  #   concurrency: 4
-
-# ---------------------------------------------------------------------------
-# Messengers. Set `enabled: false` to switch one off. `vips` maps sender ids to
-# names: VIPs have unlimited access and use vip_engine. Everyone gets their id
-# in the welcome message and in /info, so they can send it to you.
+# Messengers. Set `enabled: false` to switch one off. Anyone who can message
+# the bot can use it.
 # ---------------------------------------------------------------------------
 messengers:
   telegram:
     type: telegram
     token: ${TELEGRAM_BOT_TOKEN}
-    vips:                     # Telegram user ids (the bot tells unknown senders theirs)
-      # 123456789: Alice
 
   signal:
     type: signal
@@ -97,17 +39,12 @@ messengers:
     url: http://signal-api:8080
     number: ${SIGNAL_NUMBER}  # the account registered/linked in signal-cli-rest-api
     note_to_self: false       # true: linked to your own account, use "Note to Self"
-    vips:                     # Signal UUIDs (the bot tells unknown senders theirs). Phone numbers only match senders who share their number
-      # 0f4c1d2e-…: Alice
 
   whatsapp:
     type: whatsapp-waha
     enabled: false
     url: http://waha:3000
     session: default
-    public: false             # VIP-only even with access.public: a public bot on WAHA risks a ban
     api_key: ${WAHA_API_KEY}
     webhook_token: ${WEBHOOK_TOKEN}   # WAHA's hook URL must end with ?token=<same value>
     self_chat: false          # true: linked to your own account, use "Message yourself"
-    vips:                     # phone numbers without + (e.g. 4917612345678)
-      # 4917612345678: Alice

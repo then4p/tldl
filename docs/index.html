@@ -177,7 +177,7 @@ footer a { color: inherit; }
     <section class="try" id="try" aria-labelledby="try-title">
       <div>
         <h2 id="try-title">Try it now</h2>
-        <p>Send the bot a voice message. 5 minutes of audio a day are free, no sign-up.</p>
+        <p>Send the bot a voice message. Free, no sign-up.</p>
       </div>
       <nav aria-label="Open the bot">
         <a class="cta" href="https://signal.me/#eu/hZ036yW39OTiuvuIHX32Kbl3ZzuPgP4cMZSQcefg_mGbc2lAhHtJF6clMuD4nAir">Open in Signal</a>
@@ -192,7 +192,7 @@ footer a { color: inherit; }
         <h2>Your voice messages stay yours.</h2>
         <div class="grid">
           <p class="item"><b>Audio is deleted right away.</b> <span>It's transcribed and then thrown away, along with any copy the messenger bridge made.</span></p>
-          <p class="item"><b>No transcripts kept.</b> <span>The bot replies and forgets. It only remembers each chat's settings.</span></p>
+          <p class="item"><b>No transcripts kept.</b> <span>The bot replies and forgets. It only remembers whom it has already welcomed.</span></p>
           <p class="item"><b>No cloud services.</b> <span>The models run on the server's own CPU. No audio goes to an AI company.</span></p>
           <p class="item"><b>No account needed.</b> <span>The bot only sees what the messenger shows it: an ID, never your contacts.</span></p>
         </div>
@@ -208,7 +208,7 @@ footer a { color: inherit; }
         </div>
       </div>
 
-      <div class="panel" id="engines" data-tab="Engines">
+      <div class="panel" id="engines" data-tab="How it works">
         <h2>Fast first, then better.</h2>
         <div class="table-wrap">
           <table>
@@ -217,18 +217,9 @@ footer a { color: inherit; }
             <tr><td>Whisper large-v3-turbo</td><td>99, detected automatically</td><td>13.7 s</td><td>48.8 s</td></tr>
           </table>
         </div>
-        <p class="note">Measured on an Intel i5-12400 without a GPU. Everyone gets Parakeet's transcript right away. For VIPs, Whisper then double-checks it and the message updates with its version, which is better on colloquial speech. Any OpenAI-compatible API works too.</p>
+        <p class="note">Measured on an Intel i5-12400 without a GPU. You get Parakeet's transcript right away. Whisper then double-checks it, and the message updates with its version, which is better on colloquial speech.</p>
       </div>
 
-      <div class="panel" id="commands" data-tab="Commands">
-        <h2>Send these in any chat with the bot.</h2>
-        <dl>
-          <dt>/info</dt><dd>Your free minutes left today, and your ID</dd>
-          <dt>/details on</dt><dd>Show engine and timing under each transcript</dd>
-          <dt>/engines</dt><dd>List the engines and show the one this chat uses</dd>
-          <dt>/engine whisper</dt><dd>Switch this chat to another engine (VIPs)</dd>
-        </dl>
-      </div>
 
       <div class="panel" id="setup" data-tab="Self-host">
         <h2>Running in a few minutes.</h2>
